@@ -46,6 +46,7 @@ protected:
     virtual std::vector<std::pair<std::string, std::string>> getActionInfo() const;
     virtual std::string getMCTSPolicy() const = 0;
     virtual std::string getMCTSValue() const = 0;
+    virtual std::string getMCTSTreeString(const std::string& env_string) = 0;
     virtual std::string getEnvReward() const = 0;
 
     int nn_evaluation_batch_id_;
