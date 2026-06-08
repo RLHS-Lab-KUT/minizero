@@ -34,6 +34,7 @@ Console::Console()
     RegisterFunction("pv", this, &Console::cmdPV);
     RegisterFunction("pv_string", this, &Console::cmdPVString);
     RegisterFunction("game_string", this, &Console::cmdGameString);
+    RegisterFunction("tree_sgf", this, &Console::cmdTreeSgf);
     RegisterFunction("load_model", this, &Console::cmdLoadModel);
     RegisterFunction("get_conf_str", this, &Console::cmdGetConfigString);
     RegisterFunction("load_game", this, &Console::cmdLoadGame);
@@ -244,6 +245,14 @@ void Console::cmdGameString(const std::vector<std::string>& args)
     const Environment& env_transition = actor_->getEnvironment();
     env_loader.loadFromEnvironment(env_transition);
     reply(ConsoleResponse::kSuccess, env_loader.toString());
+}
+
+void Console::cmdTreeSgf(const std::vector<std::string>& args)
+{
+    if (!checkArgument(args, 1, 1)) { return; }
+    EnvironmentLoader env_loader;
+    env_loader.loadFromEnvironment(actor_->getEnvironment());
+    reply(ConsoleResponse::kSuccess, actor_->getMCTSTreeString(env_loader.toString()));
 }
 
 void Console::cmdLoadModel(const std::vector<std::string>& args)
