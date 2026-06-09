@@ -13,6 +13,7 @@ namespace minizero::actor {
 
 using namespace minizero;
 
+class MCTSNode;
 class BaseActor {
 public:
     BaseActor() {}
@@ -41,12 +42,13 @@ public:
     virtual std::string getSearchInfo() const = 0;
     virtual void setNetwork(const std::shared_ptr<network::Network>& network) = 0;
     virtual std::shared_ptr<Search> createSearch() = 0;
+    virtual std::string getMCTSTreeString(const std::string& env_string) = 0;
+    virtual const MCTSNode* getMCTSRootNode() const = 0;
 
 protected:
     virtual std::vector<std::pair<std::string, std::string>> getActionInfo() const;
     virtual std::string getMCTSPolicy() const = 0;
     virtual std::string getMCTSValue() const = 0;
-    virtual std::string getMCTSTreeString(const std::string& env_string) = 0;
     virtual std::string getEnvReward() const = 0;
 
     int nn_evaluation_batch_id_;
