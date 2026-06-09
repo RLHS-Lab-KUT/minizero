@@ -40,6 +40,13 @@ public:
     std::string toString() const override;
     inline std::string name() const override { return kOthelloName + "_" + std::to_string(getBoardSize()) + "x" + std::to_string(getBoardSize()); }
     inline int getNumPlayer() const override { return kOthelloNumPlayer; }
+    // XRL可視化用に追加(挙動非変更・読み取り専用): 指定マスの占有を返す(1=Player1, 2=Player2, 0=空)
+    inline int getColorAtPosition(int position) const
+    {
+        if (board_.get(Player::kPlayer1)[position]) { return 1; }
+        if (board_.get(Player::kPlayer2)[position]) { return 2; }
+        return 0;
+    }
     inline bool isPassAction(const OthelloAction& action) const { return (action.getActionID() == getBoardSize() * getBoardSize()); }
 
     inline int getRotatePosition(int position, utils::Rotation rotation) const override { return utils::getPositionByRotating(rotation, position, getBoardSize()); };
