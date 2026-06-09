@@ -62,6 +62,7 @@ protected:
     void cmdPVString(const std::vector<std::string>& args);
     void cmdGameString(const std::vector<std::string>& args);
     void cmdTreeSgf(const std::vector<std::string>& args);
+    void cmdTreeJson(const std::vector<std::string>& args);
     void cmdLoadModel(const std::vector<std::string>& args);
     void cmdGetConfigString(const std::vector<std::string>& args);
     void cmdLoadGame(const std::vector<std::string>& args);

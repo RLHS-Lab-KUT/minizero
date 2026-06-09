@@ -4,6 +4,7 @@
 #include "create_network.h"
 #include "sgf_loader.h"
 #include "time_system.h"
+#include "mcts.h"
 #include <algorithm>
 #include <climits>
 #include <iomanip>
@@ -35,6 +36,7 @@ Console::Console()
     RegisterFunction("pv_string", this, &Console::cmdPVString);
     RegisterFunction("game_string", this, &Console::cmdGameString);
     RegisterFunction("tree_sgf", this, &Console::cmdTreeSgf);
+    RegisterFunction("tree_json", this, &Console::cmdTreeJson);
     RegisterFunction("load_model", this, &Console::cmdLoadModel);
     RegisterFunction("get_conf_str", this, &Console::cmdGetConfigString);
     RegisterFunction("load_game", this, &Console::cmdLoadGame);
@@ -253,6 +255,69 @@ void Console::cmdTreeSgf(const std::vector<std::string>& args)
     EnvironmentLoader env_loader;
     env_loader.loadFromEnvironment(actor_->getEnvironment());
     reply(ConsoleResponse::kSuccess, actor_->getMCTSTreeString(env_loader.toString()));
+}
+
+namespace {
+void appendNodeJson(std::ostringstream& oss, const actor::MCTSNode* node, int bsize, bool is_root)
+{
+    oss << "{";
+    if (is_root) {
+        oss << "\"action_id\":null,\"row\":null,\"col\":null,\"player\":null,";
+    } else {
+        int aid = node->getAction().getActionID();
+        oss << "\"action_id\":" << aid << ",";
+        if (aid >= 0 && aid < bsize * bsize)
+            oss << "\"row\":" << (aid / bsize) << ",\"col\":" << (aid % bsize) << ",";
+        else
+            oss << "\"row\":null,\"col\":null,";
+        oss << "\"player\":\"" << env::playerToChar(node->getAction().getPlayer()) << "\",";
+    }
+    oss << "\"N\":" << node->getCount() << ",\"Q\":" << node->getMean()
+        << ",\"P\":" << node->getPolicy() << ",\"p_logit\":" << node->getPolicyLogit()
+        << ",\"p_noise\":" << node->getPolicyNoise() << ",\"v\":" << node->getValue()
+        << ",\"r\":" << node->getReward() << ",\"children\":[";
+    bool first = true;
+    for (int i = 0; i < node->getNumChildren(); ++i) {
+        const actor::MCTSNode* child = node->getChild(i);
+        if (!child->displayInTreeLog()) { continue; }   // count>0 のみ(tree_sgf と同基準)
+        if (!first) { oss << ","; }
+        appendNodeJson(oss, child, bsize, false);
+        first = false;
+    }
+    oss << "]}";
+}
+
+std::string boardToJson(const Environment& env)
+{
+    int n = env.getBoardSize();
+    std::ostringstream oss; oss << "[";
+    for (int row = 0; row < n; ++row) {           // row 0 = 下段(rank 1)
+        oss << (row ? "," : "") << "[";
+        for (int col = 0; col < n; ++col) {
+            int c = env.getColorAtPosition(row * n + col);
+            oss << (col ? "," : "");
+        if (c == 0) {
+            oss << "null";
+        } else {
+            oss << "\"" << env::playerToChar(static_cast<env::Player>(c)) << "\"";
+        }        }
+        oss << "]";
+    }
+    oss << "]"; return oss.str();
+}
+} // namespace
+
+void Console::cmdTreeJson(const std::vector<std::string>& args)
+{
+    if (!checkArgument(args, 1, 1)) { return; }
+    const Environment& env = actor_->getEnvironment();
+    std::ostringstream oss;
+    oss << "{\"game\":\"" << env.name() << "\",\"board_size\":" << env.getBoardSize()
+        << ",\"to_play\":\"" << env::playerToChar(env.getTurn()) << "\",\"board\":" << boardToJson(env)
+        << ",\"root\":";
+    appendNodeJson(oss, actor_->getMCTSRootNode(), env.getBoardSize(), true);
+    oss << "}";
+    reply(ConsoleResponse::kSuccess, oss.str());
 }
 
 void Console::cmdLoadModel(const std::vector<std::string>& args)
