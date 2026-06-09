@@ -49,6 +49,7 @@ protected:
     std::string getMCTSPolicy() const override { return (config::actor_use_gumbel ? gumbel_zero_.getMCTSPolicy(getMCTS()) : getMCTS()->getSearchDistributionString()); }
     std::string getMCTSValue() const override { return std::to_string(getMCTS()->getRootNode()->getMean()); }
     std::string getMCTSTreeString(const std::string& env_string) override { return getMCTS()->toString(env_string); }
+    const MCTSNode* getMCTSRootNode() const override { return static_cast<const MCTSNode*>(getMCTS()->getRootNode()); }
     std::string getEnvReward() const override;
 
     virtual void step();
