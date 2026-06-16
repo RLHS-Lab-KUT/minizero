@@ -93,7 +93,7 @@
 
 <main>
   <section>
-    <p class="lbl">盤面 · 選択ノードまでの経路を番号表示</p>
+    <p class="lbl">盤面 · 選択ノードまでの手順をルール適用して再現</p>
     <svg id="board" viewBox="0 0 360 360" aria-label="board"></svg>
     <p class="hint" id="boardHint"></p>
   </section>
@@ -140,6 +140,7 @@ const fmt=(x)=> x==null?"—":(typeof x==="number"?(Number.isInteger(x)?x:x.toFi
 const coordOf=(n)=> n.row==null?"root":COLS[n.col]+(n.row+1);
 const cur=()=> GAME.moves[PLY];
 const metricVal=(n)=> METRIC==="N"?n.N:METRIC==="Q"?n.Q:n.P;
+const other=(p)=> p==="B"?"W":"B";
 
 function normalize(obj){
   if(obj.moves) return obj;
@@ -150,9 +151,33 @@ function markPV(root){let n=root;n._pv=true;while(n.children&&n.children.length)
 function allNodes(root){const a=[];(function g(n){a.push(n);(n.children||[]).forEach(g);})(root);return a;}
 function pathToSelected(){if(!SELECTED||SELECTED.row==null)return [];const p=[];let n=SELECTED;while(n&&n.row!=null){p.unshift(n);n=n._parent;}return p;}
 
+// ---- Othello rule: apply a single move (place + flip) to a board copy ----
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function cloneBoard(b){return b.map(row=>row.slice());}
+function applyMove(board,row,col,player,n){
+  const b=cloneBoard(board), opp=other(player);
+  b[row][col]=player;
+  for(const [dr,dc] of DIRS){
+    const line=[]; let r=row+dr,c=col+dc;
+    while(r>=0&&r<n&&c>=0&&c<n&&b[r][c]===opp){ line.push([r,c]); r+=dr; c+=dc; }
+    if(line.length&&r>=0&&r<n&&c>=0&&c<n&&b[r][c]===player){ for(const [fr,fc] of line) b[fr][fc]=player; }
+  }
+  return b;
+}
+// board after applying the path from root down to the selected node
+function boardForSelected(){
+  const path=pathToSelected(); const n=GAME.board_size;
+  let b=cur().board;                       // engine ground-truth (pre-move position of this ply)
+  for(const k of path){ b=applyMove(b,k.row,k.col,k.player,n); }
+  return b;
+}
+
+// ---------- board ----------
 function drawBoard(){
-  const m=cur(), n=GAME.board_size, S=360, pad=18, cell=(S-2*pad)/n, svg=document.getElementById("board");
+  const n=GAME.board_size, S=360, pad=18, cell=(S-2*pad)/n, svg=document.getElementById("board");
   const cx=(c)=>pad+c*cell+cell/2, cy=(r)=>S-pad-r*cell-cell/2;
+  const path=pathToSelected();
+  const shown = path.length ? boardForSelected() : cur().board;   // flipped board if a node is selected
   let h=`<rect x="0" y="0" width="${S}" height="${S}" fill="#11151c"/>`;
   h+=`<rect x="${pad}" y="${pad}" width="${S-2*pad}" height="${S-2*pad}" fill="var(--board)" stroke="var(--boardedge)" stroke-width="2"/>`;
   for(let i=0;i<=n;i++){const p=pad+i*cell;
@@ -160,21 +185,20 @@ function drawBoard(){
     h+=`<line x1="${p}" y1="${pad}" x2="${p}" y2="${S-pad}" stroke="var(--boardln)" stroke-width="1"/>`;}
   for(let c=0;c<n;c++) h+=`<text x="${cx(c)}" y="${pad-6}" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${COLS[c]}</text>`;
   for(let r=0;r<n;r++) h+=`<text x="${pad-9}" y="${cy(r)+3}" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${r+1}</text>`;
-  for(let r=0;r<n;r++)for(let c=0;c<n;c++){const v=m.board[r][c];if(!v)continue;
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++){const v=shown[r][c];if(!v)continue;
     const fill=v==="B"?"var(--black)":"var(--white)", stroke=v==="B"?"var(--blackedge)":"var(--whiteedge)";
     h+=`<circle cx="${cx(c)}" cy="${cy(r)}" r="${cell*0.38}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;}
 
-  const path=pathToSelected();
-  if(path.length){
+  if(path.length){ // overlay move-order numbers on the played squares
     let i=1;
     for(const k of path){
-      const fill=k.player==="B"?"var(--black)":"var(--white)", tx=k.player==="B"?"#fff":"#111", last=(i===path.length);
-      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.40}" fill="${fill}" stroke="${last?'var(--sel)':'var(--path)'}" stroke-width="${last?3:2}"/>`;
-      h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3.5}" fill="${tx}" font-size="11" text-anchor="middle" font-family="var(--mono)" font-weight="600">${i}</text>`;
+      const last=(i===path.length), tx=k.player==="B"?"#fff":"#111";
+      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.18}" fill="${last?'var(--sel)':'var(--path)'}" stroke="#0b0e14" stroke-width="0.6"/>`;
+      h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="#11151c" font-size="9" text-anchor="middle" font-family="var(--mono)" font-weight="700">${i}</text>`;
       i++;
     }
-  } else {
-    const kids=m.root.children||[], vals=kids.map(metricVal), lo=Math.min(...vals), hi=Math.max(...vals);
+  } else { // root children heatmap (no selection)
+    const kids=cur().root.children||[], vals=kids.map(metricVal), lo=Math.min(...vals), hi=Math.max(...vals);
     const norm=(x)=>hi===lo?0.5:(x-lo)/(hi-lo);
     for(const k of kids){ if(k.row==null)continue;
       const t=norm(metricVal(k)), col=lerp([60,90,140],[255,180,84],t);
@@ -187,6 +211,7 @@ function drawBoard(){
 }
 function lerp(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
 
+// ---------- tree ----------
 function drawTree(){
   const root=cur().root, NW=66,NH=34,HGAP=14,VGAP=54; let leaf=0;
   (function place(n){if(!n.children||!n.children.length){n._x=leaf*(NW+HGAP);leaf++;}else{n.children.forEach(place);n._x=(n.children[0]._x+n.children[n.children.length-1]._x)/2;}n._y=n._depth*(NH+VGAP);})(root);
@@ -215,6 +240,7 @@ function drawTree(){
     wrap.scrollTo({left:X(sn)+NW/2-wrap.clientWidth/2, top:Y(sn)-wrap.clientHeight/2, behavior:"smooth"});}}
 }
 
+// ---------- eval ----------
 function drawEval(){
   const n=SELECTED||cur().root, pcls=n.player==="B"?"b":n.player==="W"?"w":"";
   const rows=[["手",n.row==null?"root":`<span class="pill ${pcls}">${n.player}</span> ${coordOf(n)}`],
@@ -235,6 +261,7 @@ function drawArgmax(){
     (played?`<div class="row"><span>実際の着手</span><span>${played}</span></div>`:"");
 }
 
+// ---------- chart ----------
 function drawChart(){
   const svg=document.getElementById("chart"), W=svg.clientWidth||800, H=130, pad={l:36,r:10,t:10,b:18};
   const moves=GAME.moves, qs=moves.map(m=>m.root.Q);
@@ -261,11 +288,12 @@ function drawChart(){
     const i=Math.round(((px-pad.l)/(W-pad.l-pad.r))*maxX); if(i>=0&&i<moves.length)gotoPly(i);};
 }
 
+// ---------- orchestration ----------
 function renderMove(){
   const root=cur().root; indexTree(root); markPV(root);
   document.getElementById("metaInfo").textContent=`${GAME.game} · ${GAME.board_size}×${GAME.board_size} · to_play=${cur().to_play} · root N=${root.N}`;
   document.getElementById("boardHint").textContent= SELECTED&&SELECTED.row!=null
-    ? `番号 = root からこのノードまでの着手順(桃=経路, 橙=選択ノード)。`
+    ? `盤面 = root から選択ノードまでの手順をルール適用(石は裏返し済み)。番号=着手順。`
     : `丸 = 候補手(root children)。色と数字は指標(${METRIC})。`;
   drawBoard(); drawTree(); drawEval(); drawArgmax(); drawChart();
 }
