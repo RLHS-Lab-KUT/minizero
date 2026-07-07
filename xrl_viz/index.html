@@ -9,7 +9,7 @@
     --bg:#11151c; --panel:#171c25; --line:#283142; --ink:#e7ecf3; --muted:#8a97ab;
     --board:#1f7a4d; --boardln:#0c4a2e; --boardedge:#0c3a24;
     --black:#111418; --blackedge:#5a6577; --white:#f2f5fa; --whiteedge:#0c3a24;
-    --sel:#ffb454; --pv:#4fd6c4; --accent:#6ea8ff; --path:#ff7a9c;
+    --sel:#ffb454; --played:#6ea8ff; --accent:#6ea8ff; --path:#ff7a9c;
     --bser:#cdd6e3; --wser:#ffd27a;
     --mono:"SFMono-Regular",ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Segoe UI",Roboto,sans-serif;
@@ -41,12 +41,11 @@
   .tnode rect{stroke:var(--line);stroke-width:1;fill:var(--panel);cursor:pointer}
   .tnode:hover rect{stroke:var(--muted)}
   .tnode.onpath rect{stroke:var(--path);stroke-width:1.6}
+  .tnode.played rect{fill:#15233b;stroke:var(--played);stroke-width:1.8}
   .tnode.sel rect{stroke:var(--sel);stroke-width:2.4}
-  .tnode.pv rect{fill:#16302d}
   .tnode text{font-family:var(--mono);fill:var(--ink);pointer-events:none}
   .tnode .sub{fill:var(--muted)}
   .edge{stroke:#33405a;stroke-width:1;fill:none}
-  .edge.pv{stroke:var(--pv);stroke-width:1.6}
   .edge.onpath{stroke:var(--path);stroke-width:2}
   table.kv{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
   table.kv td{padding:4px 2px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -57,6 +56,7 @@
   .pill.w{background:var(--white);color:#0d0f13;border-color:#cfd6e1}
   .argmax .row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px}
   .argmax .row span:first-child{color:var(--muted)}
+  .argmax .row.hl span:last-child{color:var(--played)}
   .hint{color:var(--muted);font-size:11px;margin-top:10px;line-height:1.5}
   .chart{border-top:1px solid var(--line);background:#10141b;padding:8px 16px 10px}
   .chart .head{display:flex;align-items:center;gap:16px;margin-bottom:2px}
@@ -98,7 +98,7 @@
     <p class="hint" id="boardHint"></p>
   </section>
   <section>
-    <p class="lbl">探索木 · クリックで選択 / 緑=主変化 / 桃=選択経路</p>
+    <p class="lbl">探索木 · クリックで選択 / 青=実際に選ばれた手 / 桃=選択経路</p>
     <div id="treeWrap"><svg id="tree"></svg></div>
   </section>
   <section>
@@ -134,7 +134,7 @@
 const COLS="ABCDEFGH";
 let GAME=null, PLY=0, METRIC="N", SELECTED=null, playTimer=null;
 
-const SINGLE={"game":"othello_8x8","board_size":8,"to_play":"B","board":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,"B","W",null,null,null],[null,null,null,"W","B",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],"root":{"action_id":null,"row":null,"col":null,"player":null,"N":17,"Q":-0.10448,"P":0,"p_logit":0,"p_noise":0,"v":-0.1144,"r":0,"children":[{"action_id":34,"row":4,"col":2,"player":"B","N":4,"Q":-0.103356,"P":0.271433,"p_logit":11.8787,"p_noise":-0.620364,"v":-0.0980872,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"W","N":3,"Q":-0.105113,"P":0.992427,"p_logit":14.4338,"p_noise":0,"v":-0.113884,"r":0,"children":[{"action_id":37,"row":4,"col":5,"player":"B","N":2,"Q":-0.100727,"P":0.912923,"p_logit":13.412,"p_noise":0,"v":-0.0923213,"r":0,"children":[{"action_id":26,"row":3,"col":2,"player":"W","N":1,"Q":-0.109132,"P":0.994937,"p_logit":13.8169,"p_noise":0,"v":-0.109132,"r":0,"children":[]}]}]}]},{"action_id":43,"row":5,"col":3,"player":"B","N":4,"Q":-0.101427,"P":0.267204,"p_logit":12.5633,"p_noise":0.0798844,"v":-0.0998248,"r":0,"children":[{"action_id":26,"row":3,"col":2,"player":"W","N":3,"Q":-0.101962,"P":0.990897,"p_logit":14.6128,"p_noise":0,"v":-0.117512,"r":0,"children":[{"action_id":19,"row":2,"col":3,"player":"B","N":2,"Q":-0.0941867,"P":0.911066,"p_logit":13.675,"p_noise":0,"v":-0.0781768,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"W","N":1,"Q":-0.110197,"P":0.996438,"p_logit":14.3729,"p_noise":0,"v":-0.110197,"r":0,"children":[]}]}]}]},{"action_id":20,"row":2,"col":4,"player":"B","N":4,"Q":-0.107698,"P":0.23194,"p_logit":11.6732,"p_noise":-0.668622,"v":-0.0983771,"r":0,"children":[{"action_id":37,"row":4,"col":5,"player":"W","N":3,"Q":-0.110805,"P":0.992605,"p_logit":14.1295,"p_noise":0,"v":-0.113712,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"B","N":2,"Q":-0.109351,"P":0.930235,"p_logit":13.9809,"p_noise":0,"v":-0.0984914,"r":0,"children":[{"action_id":19,"row":2,"col":3,"player":"W","N":1,"Q":-0.120211,"P":0.990338,"p_logit":13.7399,"p_noise":0,"v":-0.120211,"r":0,"children":[]}]}]}]},{"action_id":29,"row":3,"col":5,"player":"B","N":4,"Q":-0.102957,"P":0.229177,"p_logit":12.5691,"p_noise":0.239271,"v":-0.0980872,"r":0,"children":[{"action_id":19,"row":2,"col":3,"player":"W","N":3,"Q":-0.104581,"P":0.992427,"p_logit":14.4338,"p_noise":0,"v":-0.113884,"r":0,"children":[{"action_id":26,"row":3,"col":2,"player":"B","N":2,"Q":-0.0999295,"P":0.912923,"p_logit":13.412,"p_noise":0,"v":-0.0923213,"r":0,"children":[{"action_id":37,"row":4,"col":5,"player":"W","N":1,"Q":-0.107538,"P":0.994937,"p_logit":13.8169,"p_noise":0,"v":-0.107538,"r":0,"children":[]}]}]}]}]}};
+const SINGLE={"game":"othello_8x8","board_size":8,"to_play":"B","played":null,"board":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,"B","W",null,null,null],[null,null,null,"W","B",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],"root":{"action_id":null,"row":null,"col":null,"player":null,"N":17,"Q":-0.10448,"P":0,"p_logit":0,"p_noise":0,"v":-0.1144,"r":0,"children":[{"action_id":34,"row":4,"col":2,"player":"B","N":4,"Q":-0.103356,"P":0.271433,"p_logit":11.8787,"p_noise":-0.620364,"v":-0.0980872,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"W","N":3,"Q":-0.105113,"P":0.992427,"p_logit":14.4338,"p_noise":0,"v":-0.113884,"r":0,"children":[]}]},{"action_id":43,"row":5,"col":3,"player":"B","N":4,"Q":-0.101427,"P":0.267204,"p_logit":12.5633,"p_noise":0.0798844,"v":-0.0998248,"r":0,"children":[]},{"action_id":20,"row":2,"col":4,"player":"B","N":4,"Q":-0.107698,"P":0.23194,"p_logit":11.6732,"p_noise":-0.668622,"v":-0.0980872,"r":0,"children":[]},{"action_id":29,"row":3,"col":5,"player":"B","N":4,"Q":-0.102957,"P":0.229177,"p_logit":12.5691,"p_noise":0.239271,"v":-0.0980872,"r":0,"children":[]}]}};
 
 const fmt=(x)=> x==null?"—":(typeof x==="number"?(Number.isInteger(x)?x:x.toFixed(4)):x);
 const coordOf=(n)=> n.row==null?"root":COLS[n.col]+(n.row+1);
@@ -144,14 +144,19 @@ const other=(p)=> p==="B"?"W":"B";
 
 function normalize(obj){
   if(obj.moves) return obj;
-  return {game:obj.game, board_size:obj.board_size, moves:[Object.assign({ply:0,played:null},obj)]};
+  return {game:obj.game, board_size:obj.board_size, moves:[Object.assign({ply:0,played:obj.played??null},obj)]};
 }
 function indexTree(root){let id=0;(function w(n,p,d){n._id=id++;n._parent=p;n._depth=d;(n.children||[]).forEach(c=>w(c,n,d+1));})(root,null,0);}
-function markPV(root){let n=root;n._pv=true;while(n.children&&n.children.length){let b=n.children[0];for(const c of n.children)if(c.N>b.N)b=c;b._pv=true;n=b;}}
 function allNodes(root){const a=[];(function g(n){a.push(n);(n.children||[]).forEach(g);})(root);return a;}
 function pathToSelected(){if(!SELECTED||SELECTED.row==null)return [];const p=[];let n=SELECTED;while(n&&n.row!=null){p.unshift(n);n=n._parent;}return p;}
+// root直下で「実際に選ばれた手(played)」に対応するノードの _id
+function playedChildId(){
+  const played=cur().played; if(!played) return null;
+  for(const c of (cur().root.children||[])) if(coordOf(c).toUpperCase()===played.toUpperCase()) return c._id;
+  return null;
+}
 
-// ---- Othello rule: apply a single move (place + flip) to a board copy ----
+// ---- Othello flip ----
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 function cloneBoard(b){return b.map(row=>row.slice());}
 function applyMove(board,row,col,player,n){
@@ -164,10 +169,8 @@ function applyMove(board,row,col,player,n){
   }
   return b;
 }
-// board after applying the path from root down to the selected node
 function boardForSelected(){
-  const path=pathToSelected(); const n=GAME.board_size;
-  let b=cur().board;                       // engine ground-truth (pre-move position of this ply)
+  const path=pathToSelected(); const n=GAME.board_size; let b=cur().board;
   for(const k of path){ b=applyMove(b,k.row,k.col,k.player,n); }
   return b;
 }
@@ -177,7 +180,7 @@ function drawBoard(){
   const n=GAME.board_size, S=360, pad=18, cell=(S-2*pad)/n, svg=document.getElementById("board");
   const cx=(c)=>pad+c*cell+cell/2, cy=(r)=>S-pad-r*cell-cell/2;
   const path=pathToSelected();
-  const shown = path.length ? boardForSelected() : cur().board;   // flipped board if a node is selected
+  const shown = path.length ? boardForSelected() : cur().board;
   let h=`<rect x="0" y="0" width="${S}" height="${S}" fill="#11151c"/>`;
   h+=`<rect x="${pad}" y="${pad}" width="${S-2*pad}" height="${S-2*pad}" fill="var(--board)" stroke="var(--boardedge)" stroke-width="2"/>`;
   for(let i=0;i<=n;i++){const p=pad+i*cell;
@@ -189,20 +192,22 @@ function drawBoard(){
     const fill=v==="B"?"var(--black)":"var(--white)", stroke=v==="B"?"var(--blackedge)":"var(--whiteedge)";
     h+=`<circle cx="${cx(c)}" cy="${cy(r)}" r="${cell*0.38}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;}
 
-  if(path.length){ // overlay move-order numbers on the played squares
+  if(path.length){
     let i=1;
     for(const k of path){
-      const last=(i===path.length), tx=k.player==="B"?"#fff":"#111";
+      const last=(i===path.length);
       h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.18}" fill="${last?'var(--sel)':'var(--path)'}" stroke="#0b0e14" stroke-width="0.6"/>`;
       h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="#11151c" font-size="9" text-anchor="middle" font-family="var(--mono)" font-weight="700">${i}</text>`;
       i++;
     }
-  } else { // root children heatmap (no selection)
+  } else {
     const kids=cur().root.children||[], vals=kids.map(metricVal), lo=Math.min(...vals), hi=Math.max(...vals);
     const norm=(x)=>hi===lo?0.5:(x-lo)/(hi-lo);
+    const played=cur().played;
     for(const k of kids){ if(k.row==null)continue;
       const t=norm(metricVal(k)), col=lerp([60,90,140],[255,180,84],t);
-      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.40}" fill="rgba(${col[0]},${col[1]},${col[2]},0.32)" stroke="rgb(${col[0]},${col[1]},${col[2]})" stroke-width="1.5"/>`;
+      const isPlayed=played&&coordOf(k).toUpperCase()===played.toUpperCase();
+      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.40}" fill="rgba(${col[0]},${col[1]},${col[2]},0.32)" stroke="${isPlayed?'var(--played)':`rgb(${col[0]},${col[1]},${col[2]})`}" stroke-width="${isPlayed?3:1.5}"/>`;
       const txt=METRIC==="N"?k.N:metricVal(k).toFixed(2);
       h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="var(--ink)" font-size="9.5" text-anchor="middle" font-family="var(--mono)">${txt}</text>`;
     }
@@ -219,17 +224,18 @@ function drawTree(){
   const W=Math.max(...all.map(n=>n._x))+NW+2*M, H=Math.max(...all.map(n=>n._y))+NH+2*M;
   const X=(n)=>n._x+M, Y=(n)=>n._y+M;
   const pathIds=new Set(pathToSelected().map(n=>n._id));
+  const playedId=playedChildId();
   let h="";
   for(const n of all)for(const c of (n.children||[])){
     const x1=X(n)+NW/2,y1=Y(n)+NH,x2=X(c)+NW/2,y2=Y(c),my=(y1+y2)/2;
-    const cls=(pathIds.has(c._id)&&pathIds.has(n._id))?"onpath":(c._pv?"pv":"");
+    const cls=(pathIds.has(c._id)&&pathIds.has(n._id))?"onpath":"";
     h+=`<path class="edge ${cls}" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"/>`;
   }
   for(const n of all){
-    const sel=SELECTED&&SELECTED._id===n._id, onp=pathIds.has(n._id);
+    const sel=SELECTED&&SELECTED._id===n._id, onp=pathIds.has(n._id), isPlayed=(n._id===playedId);
     const label=n.row==null?"root":(n.player+" "+coordOf(n));
     const sub=METRIC==="N"?("N="+n.N):METRIC==="Q"?("Q="+n.Q.toFixed(3)):("P="+n.P.toFixed(2));
-    h+=`<g class="tnode ${sel?'sel':''} ${onp?'onpath':''} ${n._pv?'pv':''}" data-id="${n._id}" transform="translate(${X(n)},${Y(n)})">
+    h+=`<g class="tnode ${sel?'sel':''} ${onp?'onpath':''} ${isPlayed?'played':''}" data-id="${n._id}" transform="translate(${X(n)},${Y(n)})">
       <rect width="${NW}" height="${NH}" rx="7"/>
       <text x="${NW/2}" y="14" text-anchor="middle" font-size="11">${label}</text>
       <text class="sub" x="${NW/2}" y="26" text-anchor="middle" font-size="10">${sub}</text></g>`;
@@ -255,16 +261,51 @@ function drawArgmax(){
   const by=(f)=>kids.reduce((a,b)=>f(b)>f(a)?b:a);
   const tieN=kids.every(k=>k.N===kids[0].N), played=cur().played;
   const row=(l,k,note="")=>`<div class="row"><span>${l}</span><span>${k.player} ${coordOf(k)} ${note}</span></div>`;
+
+  // ---- Gumbelスコア分解 ----
+  const C_VISIT=50, C_SCALE=1;                       // 評価cfgで確定 (sigma_visit_c, sigma_scale_c)
+  const Nmax=Math.max(...kids.map(k=>k.N));
+  const w=(C_VISIT+Nmax)*C_SCALE;                    // σの重み (50 + N_max)
+  // 補正後の価値 q: 白の手だけ符号反転 (getNormalizedMean 相当)
+  const qNorm=(k)=>(k.player==="W"? -k.Q : k.Q);
+  const scored=kids.map(k=>{
+    const q=qNorm(k), sig=w*q, score=k.p_logit+sig;
+    return {k, logit:k.p_logit, q, sig, score};
+  }).sort((a,b)=>b.score-a.score);                   // スコア降順
+  const argmaxScore=scored[0].k;
+  const playedMatch = played && (coordOf(argmaxScore)===played || `${argmaxScore.player} ${coordOf(argmaxScore)}`.includes(played));
+
+  const f3=(x)=>(x==null||isNaN(x))?"—":x.toFixed(3);
+  let tbl=`<p class="lbl" style="margin-top:14px">Gumbelスコア = p_logit + (50 + N_max=${Nmax})×1×q<br>`
+        +`<span style="opacity:.7">q は手番補正後 (白の手は −Q)。最大スコアが実際の着手のはず。</span></p>`
+        +`<table class="kv" style="font-size:12px"><tr><td class="k">手</td><td class="k">p_logit<br>(方策)</td><td class="k">σ(q)<br>(価値)</td><td class="k">score</td></tr>`;
+  scored.forEach((s,i)=>{
+    const isMax=(i===0), isPlayed=played && coordOf(s.k)===played;
+    const mark=(isMax?" ◀最大":"")+(isPlayed?" ●着手":"");
+    const bg=isMax?' style="background:rgba(120,180,255,.12)"':"";
+    tbl+=`<tr${bg}><td class="v">${s.k.player} ${coordOf(s.k)}${mark}</td>`
+       +`<td class="v">${f3(s.logit)}</td><td class="v">${f3(s.sig)}</td>`
+       +`<td class="v"><b>${f3(s.score)}</b></td></tr>`;
+  });
+  tbl+=`</table>`;
+  // 検算: スコア最大 と 実際の着手 の一致
+  if(played){
+    tbl+=`<div class="row" style="margin-top:6px"><span>検算</span>`
+       +`<span>${playedMatch?"✓ 一致":"✗ 不一致"}（着手=${played} / スコア最大=${coordOf(argmaxScore)}）</span></div>`;
+  }
+
   document.getElementById("argmaxBox").innerHTML=
     `<p class="lbl" style="margin-top:14px">root直下の「最も評価した手」</p>`+
-    row("最大 N",by(k=>k.N),tieN?"(同点)":"")+row("最大 Q",by(k=>k.Q))+row("最大 P",by(k=>k.P))+
-    (played?`<div class="row"><span>実際の着手</span><span>${played}</span></div>`:"");
+    row("最大 N",by(k=>k.N),tieN?"(同点)":"")+row("最大 Q (生値・参考)",by(k=>k.Q))+row("最大 P",by(k=>k.P))+
+    (played?`<div class="row"><span>実際の着手</span><span>${played}</span></div>`:"")+
+    tbl;
 }
-
 // ---------- chart ----------
 function drawChart(){
   const svg=document.getElementById("chart"), W=svg.clientWidth||800, H=130, pad={l:36,r:10,t:10,b:18};
-  const moves=GAME.moves, qs=moves.map(m=>m.root.Q);
+  // root.Q は tree_json の getMean()(fixed-frame, 黒視点で正)。手番視点へ補正: 白手番は符号反転。
+  const stmQ=(m)=>(m.to_play==="W" ? -m.root.Q : m.root.Q);
+  const moves=GAME.moves, qs=moves.map(stmQ);
   let lo=Math.min(...qs,0), hi=Math.max(...qs,0); if(hi-lo<0.02){lo-=0.1;hi+=0.1;}
   const maxX=Math.max(moves.length-1,1);
   const X=(i)=>pad.l+(i/maxX)*(W-pad.l-pad.r), Y=(q)=>pad.t+(1-(q-lo)/(hi-lo))*(H-pad.t-pad.b);
@@ -273,7 +314,7 @@ function drawChart(){
   h+=`<text x="4" y="${Y(hi)+4}" fill="var(--muted)" font-size="9" font-family="var(--mono)">${hi.toFixed(2)}</text>`;
   h+=`<text x="4" y="${Y(lo)+4}" fill="var(--muted)" font-size="9" font-family="var(--mono)">${lo.toFixed(2)}</text>`;
   const series=(who,col)=>{
-    const pts=moves.map((m,i)=>({i,q:m.root.Q,w:m.to_play})).filter(p=>p.w===who);
+    const pts=moves.map((m,i)=>({i,q:stmQ(m),w:m.to_play})).filter(p=>p.w===who);
     if(!pts.length)return "";
     let d=pts.map((p,k)=>(k?"L":"M")+X(p.i)+","+Y(p.q)).join(" ");
     let s=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" opacity="0.9"/>`;
@@ -282,7 +323,7 @@ function drawChart(){
   };
   h+=series("B","var(--bser)")+series("W","var(--wser)");
   h+=`<line x1="${X(PLY)}" y1="${pad.t}" x2="${X(PLY)}" y2="${H-pad.b}" stroke="var(--accent)" stroke-width="1.4"/>`;
-  h+=`<circle cx="${X(PLY)}" cy="${Y(moves[PLY].root.Q)}" r="4" fill="var(--accent)" stroke="#0b0e14" stroke-width="1"/>`;
+  h+=`<circle cx="${X(PLY)}" cy="${Y(stmQ(moves[PLY]))}" r="4" fill="var(--accent)" stroke="#0b0e14" stroke-width="1"/>`;
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.innerHTML=h;
   svg.onclick=(e)=>{const r=svg.getBoundingClientRect();const px=(e.clientX-r.left)*(W/r.width);
     const i=Math.round(((px-pad.l)/(W-pad.l-pad.r))*maxX); if(i>=0&&i<moves.length)gotoPly(i);};
@@ -290,11 +331,11 @@ function drawChart(){
 
 // ---------- orchestration ----------
 function renderMove(){
-  const root=cur().root; indexTree(root); markPV(root);
+  const root=cur().root; indexTree(root);
   document.getElementById("metaInfo").textContent=`${GAME.game} · ${GAME.board_size}×${GAME.board_size} · to_play=${cur().to_play} · root N=${root.N}`;
   document.getElementById("boardHint").textContent= SELECTED&&SELECTED.row!=null
     ? `盤面 = root から選択ノードまでの手順をルール適用(石は裏返し済み)。番号=着手順。`
-    : `丸 = 候補手(root children)。色と数字は指標(${METRIC})。`;
+    : `丸 = 候補手(root children)。色と数字は指標(${METRIC})。青枠 = 実際に選ばれた手。`;
   drawBoard(); drawTree(); drawEval(); drawArgmax(); drawChart();
 }
 function select(n){SELECTED=n;drawBoard();drawTree();drawEval();}
