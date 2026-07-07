@@ -234,7 +234,9 @@ function drawTree(){
   for(const n of all){
     const sel=SELECTED&&SELECTED._id===n._id, onp=pathIds.has(n._id), isPlayed=(n._id===playedId);
     const label=n.row==null?"root":(n.player+" "+coordOf(n));
-    const sub=METRIC==="N"?("N="+n.N):METRIC==="Q"?("Q="+n.Q.toFixed(3)):("P="+n.P.toFixed(2));
+    // Q は getMean()(fixed-frame, 黒視点で正)。手番視点へ補正: 子は着手player、rootは to_play が白なら反転。
+    const qStm=((n.player||cur().to_play)==="W" ? -n.Q : n.Q);
+    const sub=METRIC==="N"?("N="+n.N):METRIC==="Q"?("Q="+qStm.toFixed(3)):("P="+n.P.toFixed(2));
     h+=`<g class="tnode ${sel?'sel':''} ${onp?'onpath':''} ${isPlayed?'played':''}" data-id="${n._id}" transform="translate(${X(n)},${Y(n)})">
       <rect width="${NW}" height="${NH}" rx="7"/>
       <text x="${NW/2}" y="14" text-anchor="middle" font-size="11">${label}</text>
