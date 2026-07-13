@@ -42,7 +42,12 @@ Action ZeroActor::think(bool with_play /*= false*/, bool display_board /*= false
         int spent_million_second = (utils::TimeSystem::getLocalTime() - start_ptime).total_milliseconds();
         if (config::actor_mcts_think_time_limit > 0 && spent_million_second >= config::actor_mcts_think_time_limit * 1000) { break; }
     }
-    if (!isSearchDone()) { handleSearchDone(); }
+    // Always (re)decide the action after the search loop: by this point step() has
+    // removed the virtual loss of the final simulation (zero_actor step() line ~155).
+    // If we relied on the handleSearchDone() inside afterNNEvaluation (run when the
+    // search finishes mid-step), the last-simulated node would still carry a virtual
+    // loss, deflating its value in the Gumbel score and possibly selecting a worse move.
+    handleSearchDone();
     if (with_play) { act(getSearchAction()); }
     if (display_board) { std::cerr << env_.toString() << mcts_search_data_.search_info_ << std::endl; }
     return getSearchAction();
