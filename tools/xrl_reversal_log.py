@@ -26,6 +26,9 @@ TIE_EPS = 1e-6             # float 同点判定の許容誤差
 
 
 def coord_of(child):
+    # 盤外 action(=PASS)は tree_json 側で row/col=null。null安全に "PASS" を返す。
+    if child.get("row") is None or child.get("col") is None:
+        return "PASS"
     return COLS[child["col"]] + str(child["row"] + 1)
 
 
