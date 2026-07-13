@@ -251,11 +251,16 @@ function drawTree(){
 // ---------- eval ----------
 function drawEval(){
   const n=SELECTED||cur().root, pcls=n.player==="B"?"b":n.player==="W"?"w":"";
+  // tree_json の Q(getMean()) と v は fixed-frame (黒視点で正)。手番視点へ補正:
+  // 子は着手 player、root(player=null) は to_play が白なら反転。drawTree/drawChart と同一規約。
+  const isW=((n.player||cur().to_play)==="W");
+  const qStm=isW ? -n.Q : n.Q, vStm=isW ? -n.v : n.v;
   const rows=[["手",n.row==null?"root":`<span class="pill ${pcls}">${n.player}</span> ${coordOf(n)}`],
     ["action_id",fmt(n.action_id)],["row, col",n.row==null?"—":`${n.row}, ${n.col}`],
-    ["N (visits)",fmt(n.N)],["Q (mean)",fmt(n.Q)],["P (prior)",fmt(n.P)],
-    ["p_logit",fmt(n.p_logit)],["p_noise",fmt(n.p_noise)],["v (network)",fmt(n.v)],
-    ["r (reward)",fmt(n.r)],["children",(n.children||[]).length],["depth",n._depth]];
+    ["N (visits)",fmt(n.N)],["Q (mean · 手番視点)",fmt(qStm)],["P (prior)",fmt(n.P)],
+    ["p_logit",fmt(n.p_logit)],["p_noise",fmt(n.p_noise)],["v (network · 手番視点)",fmt(vStm)],
+    ["r (reward)",fmt(n.r)],["children",(n.children||[]).length],["depth",n._depth],
+    ["Q (raw · 黒視点)",fmt(n.Q)],["v (raw · 黒視点)",fmt(n.v)]];
   document.getElementById("evalBox").innerHTML=`<table class="kv">${rows.map(([k,v])=>`<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join("")}</table>`;
 }
 function drawArgmax(){
@@ -263,7 +268,7 @@ function drawArgmax(){
   const by=(f)=>kids.reduce((a,b)=>f(b)>f(a)?b:a);
   const tieN=kids.every(k=>k.N===kids[0].N), played=cur().played;
   const row=(l,k,note="")=>`<div class="row"><span>${l}</span><span>${k.player} ${coordOf(k)} ${note}</span></div>`;
-
+  
   // ---- Gumbelスコア分解 ----
   const C_VISIT=50, C_SCALE=1;                       // 評価cfgで確定 (sigma_visit_c, sigma_scale_c)
   const Nmax=Math.max(...kids.map(k=>k.N));
@@ -298,7 +303,7 @@ function drawArgmax(){
 
   document.getElementById("argmaxBox").innerHTML=
     `<p class="lbl" style="margin-top:14px">root直下の「最も評価した手」</p>`+
-    row("最大 N",by(k=>k.N),tieN?"(同点)":"")+row("最大 Q (生値・参考)",by(k=>k.Q))+row("最大 P",by(k=>k.P))+
+    row("最大 N",by(k=>k.N),tieN?"(同点)":"")+row("最大 Q (手番視点)",by(k=>qNorm(k)))+row("最大 P",by(k=>k.P))+
     (played?`<div class="row"><span>実際の着手</span><span>${played}</span></div>`:"")+
     tbl;
 }
