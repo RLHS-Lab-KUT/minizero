@@ -22,6 +22,7 @@ public:
     virtual void add(float value, float weight = 1.0f);
     virtual void remove(float value, float weight = 1.0f);
     virtual float getNormalizedMean(const std::map<float, int>& tree_value_bound) const;
+    virtual float getNormalizedMeanWithoutVirtualLoss(const std::map<float, int>& tree_value_bound) const;
     virtual float getNormalizedPUCTScore(int total_simulation, const std::map<float, int>& tree_value_bound, float init_q_value = -1.0f) const;
     std::string toString() const override;
     bool displayInTreeLog() const override { return count_ > 0; }

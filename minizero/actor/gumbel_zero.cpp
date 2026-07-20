@@ -138,12 +138,20 @@ void GumbelZero::sortCandidatesByScore(const std::shared_ptr<MCTS>& mcts)
     for (int i = 0; i < mcts->getRootNode()->getNumChildren(); ++i) { max_child_count = fmax(max_child_count, mcts->getRootNode()->getChild(i)->getCount()); }
     auto& tree_value_bound = mcts->getTreeValueBound();
     // Score each candidate once and cache it on the node, then sort by the cached score.
-    // getNormalizedMean() is a side-effect-free const member, so scoring once per node instead
+    // The scoring function is a side-effect-free const member, so scoring once per node instead
     // of once per comparison yields the same values and the same ordering; caching only makes
     // the score observable for the search trace (gaz_decision_score).
+    //
+    // The value must exclude the virtual loss. This sort decides which candidates a halving
+    // round eliminates, and it runs from afterNNEvaluation() (zero_actor.cpp L102), which is
+    // reached before step() removes the virtual loss of the simulation just backed up
+    // (zero_actor.cpp L160). Scoring with getNormalizedMean() would therefore deflate the value
+    // of the candidate on the path just simulated -- by up to
+    // (actor_gumbel_sigma_visit_c + max_child_count) times the value error -- and can eliminate
+    // the wrong candidate. Reported upstream; keep this local fix so the corpus is not polluted.
     const float min_value = -std::numeric_limits<float>::max();
     for (auto node : candidates_) {
-        float value = node->getNormalizedMean(tree_value_bound);
+        float value = node->getNormalizedMeanWithoutVirtualLoss(tree_value_bound);
         float score = node->getPolicyLogit() + (config::actor_gumbel_sigma_visit_c + max_child_count) * config::actor_gumbel_sigma_scale_c * value;
         node->setGumbelDecisionScore(node->getCount() > 0 ? score : min_value);
     }

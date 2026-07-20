@@ -54,6 +54,24 @@ float MCTSNode::getNormalizedMean(const std::map<float, int>& tree_value_bound) 
     return value;
 }
 
+float MCTSNode::getNormalizedMeanWithoutVirtualLoss(const std::map<float, int>& tree_value_bound) const
+{
+    // Same as getNormalizedMean() but without the virtual-loss term. Use this where the value
+    // feeds a decision (which Gumbel candidate survives a halving round) rather than a
+    // selection: virtual loss exists to spread concurrent selections apart and must not
+    // decide which action gets eliminated.
+    float value = reward_ + config::actor_mcts_reward_discount * mean_;
+    if (config::actor_mcts_value_rescale) {
+        if (tree_value_bound.size() < 2) { return 1.0f; }
+        const float value_lower_bound = tree_value_bound.begin()->first;
+        const float value_upper_bound = tree_value_bound.rbegin()->first;
+        value = (value - value_lower_bound) / (value_upper_bound - value_lower_bound);
+        value = fmin(1, fmax(-1, 2 * value - 1)); // normalize to [-1, 1]
+    }
+    value = (action_.getPlayer() == env::charToPlayer(config::actor_mcts_value_flipping_player) ? -value : value); // flip value according to player
+    return value;
+}
+
 float MCTSNode::getNormalizedPUCTScore(int total_simulation, const std::map<float, int>& tree_value_bound, float init_q_value /* = -1.0f */) const
 {
     float puct_bias = config::actor_mcts_puct_init + log((1 + total_simulation + config::actor_mcts_puct_base) / config::actor_mcts_puct_base);
