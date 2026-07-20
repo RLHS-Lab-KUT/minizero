@@ -14,6 +14,8 @@ void MCTSNode::reset()
     policy_noise_ = 0.0f;
     value_ = 0.0f;
     reward_ = 0.0f;
+    gumbel_eliminated_round_ = -99;
+    gumbel_decision_score_ = std::numeric_limits<float>::quiet_NaN();
     first_child_ = nullptr;
 }
 

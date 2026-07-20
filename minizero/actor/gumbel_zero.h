@@ -18,6 +18,7 @@ public:
 private:
     int sample_size_;
     int simulation_budget_;
+    int halving_round_; // index of the next sequential-halving round; for trace logging only
     std::vector<MCTSNode*> candidates_;
 };
 

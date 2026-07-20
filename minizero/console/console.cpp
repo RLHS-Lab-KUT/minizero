@@ -7,7 +7,9 @@
 #include "mcts.h"
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <iomanip>
+#include <limits>
 #include <iostream>
 #include <sstream>
 #include <utility>
@@ -275,7 +277,29 @@ void appendNodeJson(std::ostringstream& oss, const actor::MCTSNode* node, int bs
     oss << "\"N\":" << node->getCount() << ",\"Q\":" << node->getMean()
         << ",\"P\":" << node->getPolicy() << ",\"p_logit\":" << node->getPolicyLogit()
         << ",\"p_noise\":" << node->getPolicyNoise() << ",\"v\":" << node->getValue()
-        << ",\"r\":" << node->getReward() << ",\"children\":[";
+        << ",\"r\":" << node->getReward();
+    // Gumbel sequential-halving trace; see MCTSNode for the meaning of the round sentinels.
+    // Both fields emit null when the node carries no meaningful value, so consumers never
+    // have to special-case a magic number.
+    oss << ",\"gaz_eliminated_round\":";
+    const int gaz_round = node->getGumbelEliminatedRound();
+    if (gaz_round == -99)
+        oss << "null"; // node outside the Gumbel bookkeeping (root, or below depth 1)
+    else
+        oss << gaz_round;
+    oss << ",\"gaz_decision_score\":";
+    const float gaz_score = node->getGumbelDecisionScore();
+    if (std::isnan(gaz_score) || std::isinf(gaz_score) || gaz_score == -std::numeric_limits<float>::max()) {
+        oss << "null"; // never scored, or scored with the "no visit" sentinel
+    } else {
+        // The stream default of 6 significant digits can print distinct Gumbel scores as
+        // ties, so emit the score with the digits a float round-trips with. Kept local so
+        // the precision of the existing fields above is untouched.
+        std::ostringstream score_oss;
+        score_oss << std::setprecision(std::numeric_limits<float>::max_digits10) << gaz_score;
+        oss << score_oss.str();
+    }
+    oss << ",\"children\":[";
     bool first = true;
     for (int i = 0; i < node->getNumChildren(); ++i) {
         const actor::MCTSNode* child = node->getChild(i);

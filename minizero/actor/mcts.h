@@ -38,6 +38,8 @@ public:
     inline void setValue(float value) { value_ = value; }
     inline void setReward(float reward) { reward_ = reward; }
     inline void setFirstChild(MCTSNode* first_child) { TreeNode::setFirstChild(first_child); }
+    inline void setGumbelEliminatedRound(int round) { gumbel_eliminated_round_ = round; }
+    inline void setGumbelDecisionScore(float score) { gumbel_decision_score_ = score; }
 
     // getter
     inline int getHiddenStateDataIndex() const { return hidden_state_data_index_; }
@@ -50,6 +52,8 @@ public:
     inline float getPolicyNoise() const { return policy_noise_; }
     inline float getValue() const { return value_; }
     inline float getReward() const { return reward_; }
+    inline int getGumbelEliminatedRound() const { return gumbel_eliminated_round_; }
+    inline float getGumbelDecisionScore() const { return gumbel_decision_score_; }
     inline virtual MCTSNode* getChild(int index) const override { return (index < num_children_ ? static_cast<MCTSNode*>(first_child_) + index : nullptr); }
 
 protected:
@@ -62,6 +66,17 @@ protected:
     float policy_noise_;
     float value_;
     float reward_;
+    // Gumbel sequential-halving trace (for explainability logging; not used by the search itself).
+    // gumbel_eliminated_round_: -99 = untouched by the Gumbel bookkeeping. Expected for the root
+    //                                 and for every node below depth 1; seeing it on a root child
+    //                                 means reset()/bookkeeping was missed (nodes are reused).
+    //                            -2 = a root child that never entered the initial top-m sample.
+    //                            -1 = a candidate that survived to the end of the search.
+    //                           >=0 = the halving round in which this candidate was cut.
+    // gumbel_decision_score_: the Gumbel score used at the last halving/decision sort this
+    //                         node took part in; NaN if the node was never scored.
+    int gumbel_eliminated_round_;
+    float gumbel_decision_score_;
 };
 
 class HiddenStateData {

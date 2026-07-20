@@ -94,8 +94,16 @@ void GumbelZero::sequentialHalving(const std::shared_ptr<MCTS>& mcts)
         candidates_.clear();
         for (int i = 0; i < mcts->getRootNode()->getNumChildren(); ++i) { candidates_.push_back(mcts->getRootNode()->getChild(i)); }
         sort(candidates_.begin(), candidates_.end(), [](const MCTSNode* lhs, const MCTSNode* rhs) { return lhs->getPolicyLogit() > rhs->getPolicyLogit(); });
-        if (static_cast<int>(candidates_.size()) > config::actor_gumbel_sample_size) { candidates_.resize(config::actor_gumbel_sample_size); }
+        // trace: every root child starts as a surviving candidate (-1); the ones the top-m
+        // sampling drops below are marked -2. Runs once per search (getNumSimulation() == 1
+        // holds only right after the root's initial inference), so halving_round_ is reset here.
+        for (auto node : candidates_) { node->setGumbelEliminatedRound(-1); }
+        if (static_cast<int>(candidates_.size()) > config::actor_gumbel_sample_size) {
+            for (int i = config::actor_gumbel_sample_size; i < static_cast<int>(candidates_.size()); ++i) { candidates_[i]->setGumbelEliminatedRound(-2); }
+            candidates_.resize(config::actor_gumbel_sample_size);
+        }
         sample_size_ = config::actor_gumbel_sample_size;
+        halving_round_ = 0;
         simulation_budget_ = std::max(1.0, std::floor(config::actor_num_simulation / (std::log2(config::actor_gumbel_sample_size) * sample_size_)));
     } else {
         bool all_candidates_reach_budget = true;
@@ -111,7 +119,12 @@ void GumbelZero::sequentialHalving(const std::shared_ptr<MCTS>& mcts)
                 sample_size_ /= 2;
                 assert(sample_size_ > 0);
                 sortCandidatesByScore(mcts);
-                if (static_cast<int>(candidates_.size()) > sample_size_) { candidates_.resize(sample_size_); }
+                if (static_cast<int>(candidates_.size()) > sample_size_) {
+                    // trace: record which candidates this halving round cut
+                    for (int i = sample_size_; i < static_cast<int>(candidates_.size()); ++i) { candidates_[i]->setGumbelEliminatedRound(halving_round_); }
+                    candidates_.resize(sample_size_);
+                }
+                ++halving_round_;
                 simulation_budget_ = candidates_[0]->getCount() + next_budget;
             }
         }
@@ -124,15 +137,18 @@ void GumbelZero::sortCandidatesByScore(const std::shared_ptr<MCTS>& mcts)
     float max_child_count = 0;
     for (int i = 0; i < mcts->getRootNode()->getNumChildren(); ++i) { max_child_count = fmax(max_child_count, mcts->getRootNode()->getChild(i)->getCount()); }
     auto& tree_value_bound = mcts->getTreeValueBound();
-    sort(candidates_.begin(), candidates_.end(), [&](const MCTSNode* lhs, const MCTSNode* rhs) {
-        float min_value = -std::numeric_limits<float>::max();
-        float lhs_value = lhs->getNormalizedMean(tree_value_bound);
-        float lhs_score = lhs->getPolicyLogit() + (config::actor_gumbel_sigma_visit_c + max_child_count) * config::actor_gumbel_sigma_scale_c * lhs_value;
-        lhs_score = (lhs->getCount() > 0 ? lhs_score : min_value);
-        float rhs_value = rhs->getNormalizedMean(tree_value_bound);
-        float rhs_score = rhs->getPolicyLogit() + (config::actor_gumbel_sigma_visit_c + max_child_count) * config::actor_gumbel_sigma_scale_c * rhs_value;
-        rhs_score = (rhs->getCount() > 0 ? rhs_score : min_value);
-        return lhs_score > rhs_score;
+    // Score each candidate once and cache it on the node, then sort by the cached score.
+    // getNormalizedMean() is a side-effect-free const member, so scoring once per node instead
+    // of once per comparison yields the same values and the same ordering; caching only makes
+    // the score observable for the search trace (gaz_decision_score).
+    const float min_value = -std::numeric_limits<float>::max();
+    for (auto node : candidates_) {
+        float value = node->getNormalizedMean(tree_value_bound);
+        float score = node->getPolicyLogit() + (config::actor_gumbel_sigma_visit_c + max_child_count) * config::actor_gumbel_sigma_scale_c * value;
+        node->setGumbelDecisionScore(node->getCount() > 0 ? score : min_value);
+    }
+    sort(candidates_.begin(), candidates_.end(), [](const MCTSNode* lhs, const MCTSNode* rhs) {
+        return lhs->getGumbelDecisionScore() > rhs->getGumbelDecisionScore();
     });
 }
 
