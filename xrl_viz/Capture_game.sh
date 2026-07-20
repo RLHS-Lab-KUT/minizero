@@ -35,9 +35,17 @@ gen_cmds() {
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 echo "[capture_game] playing one game (max $MAX plies)..." 1>&2
-gen_cmds | tools/quick-run.sh console "$GAME_TYPE" "$MODEL" $CONF 2>/dev/null > "$TMP"
+# エンジンは tools/quick-run.sh を経由せず直接起動する。
+# quick-run.sh は console の stderr を非同期プロセス置換(L634)で色付けして返すため、
+# 色付き盤面表示が stdout の tree_json 行の途中に割り込み、JSON が壊れる。
+# 実測: quick-run.sh 経由では tree_json 64 件中 48 件しかパースできず、
+#       直接起動では 65/65 件すべてパースできる。
+MODEL_PT="$MODEL"
+[ -d "$MODEL" ] && MODEL_PT=$(ls -t "$MODEL"/model/*.pt "$MODEL"/*.pt 2>/dev/null | head -n1)
+gen_cmds | "build/${GAME_TYPE}/minizero_${GAME_TYPE}" -mode console \
+    -conf_file "$CONF" -conf_str "nn_file_name=${MODEL_PT}" > "$TMP" 2>/dev/null
 
-python3 - "$TMP" <<'PY'
+python3 - "$TMP" "$MAX" <<'PY'
 import sys, json
 
 with open(sys.argv[1]) as f:
@@ -50,15 +58,23 @@ played_seq = []     # genmove の着手の列
 game = bsize = None
 for body in lines:
     if body.startswith("{"):
+        # 壊れた tree_json を黙って捨てると trees[] が縮み、board と root の対応が
+        # ply 単位でずれる(着手が root の子に存在しない状態になる)。黙殺せず落とす。
         try:
             obj = json.loads(body)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as e:
+            sys.exit(f"[capture_game] 致命的: tree_json {len(trees)} 件目が壊れています: {e}\n"
+                     f"  先頭200文字: {body[:200]!r}")
         if game is None:
             game = obj.get("game"); bsize = obj.get("board_size")
         trees.append(obj)
     else:
         played_seq.append(body)
+
+expected_trees = int(sys.argv[2]) + 1   # 冒頭に1回 + 各 genmove の後に MAX 回
+if len(trees) != expected_trees:
+    sys.exit(f"[capture_game] 致命的: tree_json が {len(trees)} 件しかありません"
+             f"(期待 {expected_trees} 件)。応答が欠落しています。")
 
 # trees[0] = 初期局面の盤面(着手前)。
 # trees[k] (k>=1) = k手目の着手後の盤面 + k手目を選んだ探索 root。
