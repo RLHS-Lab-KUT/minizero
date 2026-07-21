@@ -303,7 +303,12 @@ void appendNodeJson(std::ostringstream& oss, const actor::MCTSNode* node, int bs
     bool first = true;
     for (int i = 0; i < node->getNumChildren(); ++i) {
         const actor::MCTSNode* child = node->getChild(i);
-        if (!child->displayInTreeLog()) { continue; }   // count>0 のみ(tree_sgf と同基準)
+        // At the root, emit every legal move even if it was never visited. Gumbel's top-m
+        // sampling drops the lowest-logit actions before the search starts (gumbel_zero.cpp
+        // L101-104) and those are exactly the count == 0 children here, so filtering them
+        // would hide which actions were never candidates at all. Below the root keep the
+        // count > 0 filter: emitting every unvisited child there grows the tree 3.5-7x.
+        if (!is_root && !child->displayInTreeLog()) { continue; }   // count>0 のみ(tree_sgf と同基準)
         if (!first) { oss << ","; }
         appendNodeJson(oss, child, bsize, false);
         first = false;
