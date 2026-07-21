@@ -1,0 +1,8 @@
+ply,section,n16_pre,n16_post,n16_changed,n32_pre,n32_post,n32_changed,n128_pre,n128_post,n128_changed,n128game_board_same,n128game_played_pre,n128game_played_post
+18,A,G4,G4,False,G4,G4,False,B6,B6,False,False,C6,G6
+39,A,G5,G5,False,A7,A7,False,A7,A7,False,False,G1,B4
+20,A,F7,F7,False,F7,F7,False,F7,F7,False,False,D7,C2
+45,B,G2,G2,False,G2,G2,False,G2,G2,False,False,G7,G2
+58,B,範囲外,範囲外,,範囲外,範囲外,,範囲外,範囲外,,False,F8,A7
+3,B,D3,D3,False,D3,D3,False,D3,D3,False,True,F5,F5
+17,C,E2,E2,False,E2,E2,False,E2,E2,False,False,G4,E2
