@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCTS Search Tree Viewer (az) — Othello / AlphaZero</title>
+<style>
+  :root{
+    --bg:#11151c; --panel:#171c25; --line:#283142; --ink:#e7ecf3; --muted:#8a97ab;
+    --board:#1f7a4d; --boardln:#0c4a2e; --boardedge:#0c3a24;
+    --black:#111418; --blackedge:#5a6577; --white:#f2f5fa; --whiteedge:#0c3a24;
+    --sel:#ffb454; --played:#6ea8ff; --accent:#6ea8ff; --path:#ff7a9c;
+    --bser:#cdd6e3; --wser:#ffd27a;
+    --mono:"SFMono-Regular",ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;display:flex;flex-direction:column}
+  header{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:14px;font-weight:600;margin:0;letter-spacing:.02em}
+  header .meta{color:var(--muted);font-family:var(--mono);font-size:12px}
+  .spacer{flex:1}
+  .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 9px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{background:transparent;color:var(--muted);border:0;padding:5px 11px;font-family:var(--mono);font-size:12px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#0b0e14;font-weight:600}
+  .btn{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:5px 11px;cursor:pointer;font-size:12px}
+  .btn:hover{border-color:var(--muted)}
+  .plybar{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line);background:#10141b}
+  .plybar input[type=range]{flex:1;accent-color:var(--accent)}
+  .plybar .pos{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;min-width:150px;text-align:right}
+  .iconbtn{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:6px;width:32px;height:28px;cursor:pointer;font-size:12px}
+  .iconbtn:hover{border-color:var(--muted)}
+  main{display:grid;grid-template-columns:minmax(290px,340px) 1fr minmax(210px,270px);flex:1;min-height:0}
+  section{padding:14px 16px;overflow:auto;min-width:0}
+  section + section{border-left:1px solid var(--line)}
+  #board{width:100%;height:auto;display:block}
+  #treeWrap{height:calc(100% - 26px);overflow:auto;border:1px solid var(--line);border-radius:8px;background:#0e1219}
+  #tree{display:block}
+  .tnode rect{stroke:var(--line);stroke-width:1;fill:var(--panel);cursor:pointer}
+  .tnode:hover rect{stroke:var(--muted)}
+  .tnode.onpath rect{stroke:var(--path);stroke-width:1.6}
+  .tnode.played rect{fill:#15233b;stroke:var(--played);stroke-width:1.8}
+  .tnode.sel rect{stroke:var(--sel);stroke-width:2.4}
+  .tnode text{font-family:var(--mono);fill:var(--ink);pointer-events:none}
+  .tnode .sub{fill:var(--muted)}
+  .edge{stroke:#33405a;stroke-width:1;fill:none}
+  .edge.onpath{stroke:var(--path);stroke-width:2}
+  table.kv{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+  table.kv td{padding:4px 2px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.kv td.k{color:var(--muted);white-space:nowrap;padding-right:10px}
+  table.kv td.v{text-align:right;word-break:break-all}
+  .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-family:var(--mono);font-size:11px;border:1px solid var(--line);color:var(--muted)}
+  .pill.b{background:var(--black);color:#cfd6e1;border-color:#000}
+  .pill.w{background:var(--white);color:#0d0f13;border-color:#cfd6e1}
+  .argmax .row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px}
+  .argmax .row span:first-child{color:var(--muted)}
+  .argmax .row.hl span:last-child{color:var(--played)}
+  .hint{color:var(--muted);font-size:11px;margin-top:10px;line-height:1.5}
+  .chart{border-top:1px solid var(--line);background:#10141b;padding:8px 16px 10px}
+  .chart .head{display:flex;align-items:center;gap:16px;margin-bottom:2px}
+  .chart .legend{display:flex;gap:14px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .chart .legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+  #chart{width:100%;height:130px;display:block;cursor:pointer}
+  header .tag{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;font-family:var(--mono);font-size:11px;font-weight:600;background:var(--sel);color:#11151c}
+  #qtrace{width:100%;height:210px;display:block}
+  #qtLegend{flex-wrap:wrap;row-gap:4px;max-width:100%}
+  input[type=file]{display:none}
+  textarea{width:100%;height:120px;background:#0e1219;color:var(--ink);border:1px solid var(--line);border-radius:7px;font-family:var(--mono);font-size:11px;padding:8px;margin-top:8px}
+  dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;width:min(560px,90vw)}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+</style>
+</head>
+<body>
+<header>
+  <h1>MCTS Search Tree Viewer <span class="tag">az / AlphaZero</span></h1>
+  <span class="meta" id="metaInfo">—</span>
+  <div class="spacer"></div>
+  <span class="lbl" style="margin:0 4px 0 0">盤面の指標</span>
+  <div class="seg" id="metricSeg">
+    <button data-m="N" class="on">N</button><button data-m="Q">Q</button><button data-m="P">P</button>
+  </div>
+  <label class="btn" for="fileIn">JSONを開く</label>
+  <input type="file" id="fileIn" accept=".json,application/json">
+  <button class="btn" id="pasteBtn">貼り付け</button>
+</header>
+
+<div class="plybar">
+  <button class="iconbtn" id="prevBtn" title="前の手">◀</button>
+  <button class="iconbtn" id="playBtn" title="再生/停止">▶</button>
+  <button class="iconbtn" id="nextBtn" title="次の手">▶▶</button>
+  <input type="range" id="plySlider" min="0" max="0" value="0">
+  <span class="pos" id="plyPos">手番 0 / 0</span>
+</div>
+
+<main>
+  <section>
+    <p class="lbl">盤面 · 選択ノードまでの手順をルール適用して再現</p>
+    <svg id="board" viewBox="0 0 360 360" aria-label="board"></svg>
+    <p class="hint" id="boardHint"></p>
+  </section>
+  <section>
+    <p class="lbl">探索木 · クリックで選択 / 青=実際に選ばれた手 / 桃=選択経路</p>
+    <div id="treeWrap"><svg id="tree"></svg></div>
+  </section>
+  <section>
+    <p class="lbl">ノード評価</p>
+    <div id="evalBox"></div>
+    <div class="argmax" id="argmaxBox"></div>
+  </section>
+</main>
+
+<div class="chart">
+  <div class="head">
+    <p class="lbl" style="margin:0">評価推移(root Q · 手番視点) · クリックで移動</p>
+    <div class="legend">
+      <span><i style="border-color:var(--bser)"></i>黒の手番</span>
+      <span><i style="border-color:var(--wser)"></i>白の手番</span>
+    </div>
+  </div>
+  <svg id="chart"></svg>
+</div>
+
+<div class="chart">
+  <div class="head">
+    <p class="lbl" style="margin:0">PUCT スコア Q+U の推移(横軸=シミュレーション番号 t · 手番視点 · 縦軸は ply ごと自動)</p>
+    <div class="legend" id="qtLegend"></div>
+  </div>
+  <svg id="qtrace"></svg>
+</div>
+
+<dialog id="pasteDlg">
+  <form method="dialog" style="padding:16px">
+    <p class="lbl">tree_json / game.json の出力を貼り付け</p>
+    <textarea id="pasteArea" placeholder='単一局面 {"game":...,"root":...} もしくは 対局 {"moves":[...]}'></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn" value="cancel">キャンセル</button>
+      <button class="btn" id="pasteOk" value="ok" style="border-color:var(--accent);color:var(--accent)">読み込む</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const COLS="ABCDEFGH";
+let GAME=null, PLY=0, METRIC="N", SELECTED=null, playTimer=null;
+
+const SINGLE={"game":"othello_8x8","board_size":8,"to_play":"B","played":null,"board":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,"B","W",null,null,null],[null,null,null,"W","B",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],"root":{"action_id":null,"row":null,"col":null,"player":null,"N":17,"Q":-0.10448,"P":0,"p_logit":0,"p_noise":0,"v":-0.1144,"r":0,"children":[{"action_id":34,"row":4,"col":2,"player":"B","N":4,"Q":-0.103356,"P":0.271433,"p_logit":11.8787,"p_noise":-0.620364,"v":-0.0980872,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"W","N":3,"Q":-0.105113,"P":0.992427,"p_logit":14.4338,"p_noise":0,"v":-0.113884,"r":0,"children":[]}]},{"action_id":43,"row":5,"col":3,"player":"B","N":4,"Q":-0.101427,"P":0.267204,"p_logit":12.5633,"p_noise":0.0798844,"v":-0.0998248,"r":0,"children":[]},{"action_id":20,"row":2,"col":4,"player":"B","N":4,"Q":-0.107698,"P":0.23194,"p_logit":11.6732,"p_noise":-0.668622,"v":-0.0980872,"r":0,"children":[]},{"action_id":29,"row":3,"col":5,"player":"B","N":4,"Q":-0.102957,"P":0.229177,"p_logit":12.5691,"p_noise":0.239271,"v":-0.0980872,"r":0,"children":[]}]}};
+
+const fmt=(x)=> x==null?"—":(typeof x==="number"?(Number.isInteger(x)?x:x.toFixed(4)):x);
+const coordOf=(n)=> n.row==null?"root":COLS[n.col]+(n.row+1);
+const cur=()=> GAME.moves[PLY];
+const metricVal=(n)=> METRIC==="N"?n.N:METRIC==="Q"?n.Q:n.P;
+const other=(p)=> p==="B"?"W":"B";
+
+function normalize(obj){
+  if(obj.moves) return obj;
+  if(Array.isArray(obj)){  // replay_n*.json 形式: [{ply,color,n16_move,engine_move,tree:{...,root}}]
+    const g=obj[0]&&obj[0].tree||{};
+    return {game:g.game, board_size:g.board_size,
+      moves:obj.map(e=>({ply:e.ply, played:e.engine_move,
+        to_play:e.tree.to_play, board:e.tree.board, root:e.tree.root}))};
+  }
+  return {game:obj.game, board_size:obj.board_size, moves:[Object.assign({ply:0,played:obj.played??null},obj)]};
+}
+function indexTree(root){let id=0;(function w(n,p,d){n._id=id++;n._parent=p;n._depth=d;(n.children||[]).forEach(c=>w(c,n,d+1));})(root,null,0);}
+function allNodes(root){const a=[];(function g(n){a.push(n);(n.children||[]).forEach(g);})(root);return a;}
+function pathToSelected(){if(!SELECTED||SELECTED.row==null)return [];const p=[];let n=SELECTED;while(n&&n.row!=null){p.unshift(n);n=n._parent;}return p;}
+// root直下で「実際に選ばれた手(played)」に対応するノードの _id
+function playedChildId(){
+  const played=cur().played; if(!played) return null;
+  for(const c of (cur().root.children||[])) if(coordOf(c).toUpperCase()===played.toUpperCase()) return c._id;
+  return null;
+}
+
+// ---- Othello flip ----
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function cloneBoard(b){return b.map(row=>row.slice());}
+function applyMove(board,row,col,player,n){
+  const b=cloneBoard(board), opp=other(player);
+  b[row][col]=player;
+  for(const [dr,dc] of DIRS){
+    const line=[]; let r=row+dr,c=col+dc;
+    while(r>=0&&r<n&&c>=0&&c<n&&b[r][c]===opp){ line.push([r,c]); r+=dr; c+=dc; }
+    if(line.length&&r>=0&&r<n&&c>=0&&c<n&&b[r][c]===player){ for(const [fr,fc] of line) b[fr][fc]=player; }
+  }
+  return b;
+}
+function boardForSelected(){
+  const path=pathToSelected(); const n=GAME.board_size; let b=cur().board;
+  for(const k of path){ b=applyMove(b,k.row,k.col,k.player,n); }
+  return b;
+}
+
+// ---------- board ----------
+function drawBoard(){
+  const n=GAME.board_size, S=360, pad=18, cell=(S-2*pad)/n, svg=document.getElementById("board");
+  const cx=(c)=>pad+c*cell+cell/2, cy=(r)=>S-pad-r*cell-cell/2;
+  const path=pathToSelected();
+  const shown = path.length ? boardForSelected() : cur().board;
+  let h=`<rect x="0" y="0" width="${S}" height="${S}" fill="#11151c"/>`;
+  h+=`<rect x="${pad}" y="${pad}" width="${S-2*pad}" height="${S-2*pad}" fill="var(--board)" stroke="var(--boardedge)" stroke-width="2"/>`;
+  for(let i=0;i<=n;i++){const p=pad+i*cell;
+    h+=`<line x1="${pad}" y1="${p}" x2="${S-pad}" y2="${p}" stroke="var(--boardln)" stroke-width="1"/>`;
+    h+=`<line x1="${p}" y1="${pad}" x2="${p}" y2="${S-pad}" stroke="var(--boardln)" stroke-width="1"/>`;}
+  for(let c=0;c<n;c++) h+=`<text x="${cx(c)}" y="${pad-6}" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${COLS[c]}</text>`;
+  for(let r=0;r<n;r++) h+=`<text x="${pad-9}" y="${cy(r)+3}" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${r+1}</text>`;
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++){const v=shown[r][c];if(!v)continue;
+    const fill=v==="B"?"var(--black)":"var(--white)", stroke=v==="B"?"var(--blackedge)":"var(--whiteedge)";
+    h+=`<circle cx="${cx(c)}" cy="${cy(r)}" r="${cell*0.38}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;}
+
+  if(path.length){
+    let i=1;
+    for(const k of path){
+      const last=(i===path.length);
+      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.18}" fill="${last?'var(--sel)':'var(--path)'}" stroke="#0b0e14" stroke-width="0.6"/>`;
+      h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="#11151c" font-size="9" text-anchor="middle" font-family="var(--mono)" font-weight="700">${i}</text>`;
+      i++;
+    }
+  } else {
+    const kids=cur().root.children||[], vals=kids.map(metricVal), lo=Math.min(...vals), hi=Math.max(...vals);
+    const norm=(x)=>hi===lo?0.5:(x-lo)/(hi-lo);
+    const played=cur().played;
+    for(const k of kids){ if(k.row==null)continue;
+      const t=norm(metricVal(k)), col=lerp([60,90,140],[255,180,84],t);
+      const isPlayed=played&&coordOf(k).toUpperCase()===played.toUpperCase();
+      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.40}" fill="rgba(${col[0]},${col[1]},${col[2]},0.32)" stroke="${isPlayed?'var(--played)':`rgb(${col[0]},${col[1]},${col[2]})`}" stroke-width="${isPlayed?3:1.5}"/>`;
+      const txt=METRIC==="N"?k.N:metricVal(k).toFixed(2);
+      h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="var(--ink)" font-size="9.5" text-anchor="middle" font-family="var(--mono)">${txt}</text>`;
+    }
+  }
+  svg.innerHTML=h;
+}
+function lerp(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
+
+// ---------- tree ----------
+function drawTree(){
+  const root=cur().root, NW=66,NH=34,HGAP=14,VGAP=54; let leaf=0;
+  (function place(n){if(!n.children||!n.children.length){n._x=leaf*(NW+HGAP);leaf++;}else{n.children.forEach(place);n._x=(n.children[0]._x+n.children[n.children.length-1]._x)/2;}n._y=n._depth*(NH+VGAP);})(root);
+  const all=allNodes(root), M=20;
+  const W=Math.max(...all.map(n=>n._x))+NW+2*M, H=Math.max(...all.map(n=>n._y))+NH+2*M;
+  const X=(n)=>n._x+M, Y=(n)=>n._y+M;
+  const pathIds=new Set(pathToSelected().map(n=>n._id));
+  const playedId=playedChildId();
+  let h="";
+  for(const n of all)for(const c of (n.children||[])){
+    const x1=X(n)+NW/2,y1=Y(n)+NH,x2=X(c)+NW/2,y2=Y(c),my=(y1+y2)/2;
+    const cls=(pathIds.has(c._id)&&pathIds.has(n._id))?"onpath":"";
+    h+=`<path class="edge ${cls}" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"/>`;
+  }
+  for(const n of all){
+    const sel=SELECTED&&SELECTED._id===n._id, onp=pathIds.has(n._id), isPlayed=(n._id===playedId);
+    const label=n.row==null?"root":(n.player+" "+coordOf(n));
+    // Q は getMean()(fixed-frame, 黒視点で正)。手番視点へ補正: 子は着手player、rootは to_play が白なら反転。
+    const qStm=((n.player||cur().to_play)==="W" ? -n.Q : n.Q);
+    const sub=METRIC==="N"?("N="+n.N):METRIC==="Q"?("Q="+qStm.toFixed(3)):("P="+n.P.toFixed(2));
+    h+=`<g class="tnode ${sel?'sel':''} ${onp?'onpath':''} ${isPlayed?'played':''}" data-id="${n._id}" transform="translate(${X(n)},${Y(n)})">
+      <rect width="${NW}" height="${NH}" rx="7"/>
+      <text x="${NW/2}" y="14" text-anchor="middle" font-size="11">${label}</text>
+      <text class="sub" x="${NW/2}" y="26" text-anchor="middle" font-size="10">${sub}</text></g>`;
+  }
+  const svg=document.getElementById("tree"); svg.setAttribute("width",W); svg.setAttribute("height",H); svg.innerHTML=h;
+  svg.querySelectorAll(".tnode").forEach(g=>g.addEventListener("click",()=>select(all.find(n=>n._id==+g.dataset.id))));
+  if(SELECTED){const sn=all.find(n=>n._id===SELECTED._id);if(sn){const wrap=document.getElementById("treeWrap");
+    wrap.scrollTo({left:X(sn)+NW/2-wrap.clientWidth/2, top:Y(sn)-wrap.clientHeight/2, behavior:"smooth"});}}
+}
+
+// ---------- eval ----------
+function drawEval(){
+  const n=SELECTED||cur().root, pcls=n.player==="B"?"b":n.player==="W"?"w":"";
+  // tree_json の Q(getMean()) と v は fixed-frame (黒視点で正)。手番視点へ補正:
+  // 子は着手 player、root(player=null) は to_play が白なら反転。drawTree/drawChart と同一規約。
+  const isW=((n.player||cur().to_play)==="W");
+  const qStm=isW ? -n.Q : n.Q, vStm=isW ? -n.v : n.v;
+  const rows=[["手",n.row==null?"root":`<span class="pill ${pcls}">${n.player}</span> ${coordOf(n)}`],
+    ["action_id",fmt(n.action_id)],["row, col",n.row==null?"—":`${n.row}, ${n.col}`],
+    ["N (visits)",fmt(n.N)],["Q (mean · 手番視点)",fmt(qStm)],["P (prior)",fmt(n.P)],
+    ["p_logit",fmt(n.p_logit)],["p_noise",fmt(n.p_noise)],["v (network · 手番視点)",fmt(vStm)],
+    ["r (reward)",fmt(n.r)],["children",(n.children||[]).length],["depth",n._depth],
+    ["Q (raw · 黒視点)",fmt(n.Q)],["v (raw · 黒視点)",fmt(n.v)]];
+  document.getElementById("evalBox").innerHTML=`<table class="kv">${rows.map(([k,v])=>`<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join("")}</table>`;
+}
+function drawArgmax(){
+  const kids=cur().root.children||[]; if(!kids.length){document.getElementById("argmaxBox").innerHTML="";return;}
+  const by=(f)=>kids.reduce((a,b)=>f(b)>f(a)?b:a);
+  const tieN=kids.every(k=>k.N===kids[0].N), played=cur().played;
+  const row=(l,k,note="")=>`<div class="row"><span>${l}</span><span>${k.player} ${coordOf(k)} ${note}</span></div>`;
+  // 手番補正後の価値 q: 白の手だけ符号反転 (getNormalizedMean 相当)
+  const qNorm=(k)=>(k.player==="W"? -k.Q : k.Q);
+  // az は actor_use_gumbel=false のため gumbel score は決定に一切関与しない
+  // (zero_actor.cpp:186 の分岐に入らない)。着手決定は訪問数 argmax
+  // (zero_actor.cpp:189 → mcts.cpp:111 selectChildByMaxCount)。
+  document.getElementById("argmaxBox").innerHTML=
+    `<p class="lbl" style="margin-top:14px">着手決定 = 訪問数 argmax<br>`
+    +`<span style="opacity:.7">az は selectChildByMaxCount。「最大 N」が決定そのもの。`
+    +`最大 Q / 最大 P は参考値で決定には使われない。</span></p>`+
+    row("最大 N ← 決定",by(k=>k.N),tieN?"(同点)":"")+
+    row("最大 Q (手番視点 · 参考)",by(k=>qNorm(k)))+
+    row("最大 P (参考)",by(k=>k.P))+
+    (played?`<div class="row"><span>実際の着手</span><span>${played}</span></div>`:"");
+}
+// ---------- chart ----------
+function drawChart(){
+  const svg=document.getElementById("chart"), W=svg.clientWidth||800, H=130, pad={l:36,r:10,t:10,b:18};
+  // root.Q は tree_json の getMean()(fixed-frame, 黒視点で正)。手番視点へ補正: 白手番は符号反転。
+  const stmQ=(m)=>(m.to_play==="W" ? -m.root.Q : m.root.Q);
+  const moves=GAME.moves, qs=moves.map(stmQ);
+  let lo=Math.min(...qs,0), hi=Math.max(...qs,0); if(hi-lo<0.02){lo-=0.1;hi+=0.1;}
+  const maxX=Math.max(moves.length-1,1);
+  const X=(i)=>pad.l+(i/maxX)*(W-pad.l-pad.r), Y=(q)=>pad.t+(1-(q-lo)/(hi-lo))*(H-pad.t-pad.b);
+  let h="";
+  h+=`<line x1="${pad.l}" y1="${Y(0)}" x2="${W-pad.r}" y2="${Y(0)}" stroke="#2a3445" stroke-width="1"/>`;
+  h+=`<text x="4" y="${Y(hi)+4}" fill="var(--muted)" font-size="9" font-family="var(--mono)">${hi.toFixed(2)}</text>`;
+  h+=`<text x="4" y="${Y(lo)+4}" fill="var(--muted)" font-size="9" font-family="var(--mono)">${lo.toFixed(2)}</text>`;
+  const series=(who,col)=>{
+    const pts=moves.map((m,i)=>({i,q:stmQ(m),w:m.to_play})).filter(p=>p.w===who);
+    if(!pts.length)return "";
+    let d=pts.map((p,k)=>(k?"L":"M")+X(p.i)+","+Y(p.q)).join(" ");
+    let s=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" opacity="0.9"/>`;
+    for(const p of pts) s+=`<circle cx="${X(p.i)}" cy="${Y(p.q)}" r="2.4" fill="${col}"/>`;
+    return s;
+  };
+  h+=series("B","var(--bser)")+series("W","var(--wser)");
+  h+=`<line x1="${X(PLY)}" y1="${pad.t}" x2="${X(PLY)}" y2="${H-pad.b}" stroke="var(--accent)" stroke-width="1.4"/>`;
+  h+=`<circle cx="${X(PLY)}" cy="${Y(stmQ(moves[PLY]))}" r="4" fill="var(--accent)" stroke="#0b0e14" stroke-width="1"/>`;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.innerHTML=h;
+  svg.onclick=(e)=>{const r=svg.getBoundingClientRect();const px=(e.clientX-r.left)*(W/r.width);
+    const i=Math.round(((px-pad.l)/(W-pad.l-pad.r))*maxX); if(i>=0&&i<moves.length)gotoPly(i);};
+}
+
+// ---------- Q+U (PUCT スコア) ----------
+// root直下の全候補について、探索中の各時刻 t の PUCT スコア Q+U を再構成して重ねる。
+//
+// 式の出典 (minizero/actor/mcts.cpp):
+//   :78  puct_bias = puct_init + log((1 + total_simulation + puct_base) / puct_base)
+//   :79  U         = puct_bias * getPolicy() * sqrt(total_simulation) / (1 + N)
+//   :80  Q         = (N == 0 ? init_q_value : getNormalizedMean())
+//   :211 total_simulation = 親の count - 1
+//   :226-243 init_q_value = (sum_of_win - 1) / (sum + 1)
+//            sum_of_win = 訪問済みの子の getNormalizedMean の単純和 (N 重みなし)
+//            sum        = 訪問済みの子の件数。時刻ごとに再計算する。
+//   :43-56 getNormalizedMean = flip(r + discount * mean)。rescale=false 前提。
+// 定数は json の config から読む (ハードコードしない)。config を持たない記録では描かない。
+//
+// 時刻の復元 (mcts.cpp:193,201):
+//   backup 冒頭で simulation = getNumSimulation() (= root の count) を読み、
+//   各ノードに (simulation, mean) を積む。時刻 t の選択が起きた時点では
+//   root の count は t なので total_simulation = t - 1。
+//
+// ---- 落とし穴: N_t は t' <= t ではなく t' < t である ----
+// 「時刻 t での N」を素直に読むと q_trace の t' <= t を数えたくなるが、それは誤り。
+// mcts.cpp:193 が backup の冒頭で simulation = getNumSimulation() を読み、
+// mcts.cpp:201 が node->addQTrace(simulation, node->getMean()) で積む。つまり
+// t' = t のエントリは「時刻 t の選択が起きた結果」であって、その選択の時点では
+// まだ存在しない。選択時に PUCT が見ている N は t' < t の件数である。
+// 実測 (az_S1_n128.json, 61 ply x 128 選択 = 7808 件。Q+U の argmax が
+// q_trace から読める実際の選択と一致するかを数えた):
+//     t' <  t (この実装) : 7808 / 7808  (100.00%)
+//     t' <= t            : 6123 / 7808  ( 78.42%)
+// t' <= t のほうが直感的に見えるので取り違えやすい。変更するときは必ずこの
+// 検算 (一致率 100%) を回し直すこと。
+//
+// ---- グラフの読み方: init_q からの離脱点 ----
+// 未訪問の子の Q 項は全員が共通の init_q_value になるので、線は重なって走る。
+// ある手が初めて読まれると、その次の時刻から Q 項が実測値に切り替わって離脱する。
+// 上の t' < t の定義から、離脱点は「初訪問の時刻 + 1」になる。
+// 実測: 訪問済み 213 件すべてで depart == first + 1 (first = q_trace の最初の t)。
+// したがって「その手が初めて読まれた時刻」は離脱点そのものではなく、その 1 つ前。
+
+// 全候補 × 全時刻の Q+U を計算して返す。drawQTrace と検算スクリプトで共用する純関数。
+// 戻り値: {tMax, score[i][j]=[t,s], qterm[i][j]=[t,q], uterm[i][j]=[t,u]}
+function quSeries(kids, toPlay, rootN, cfg){
+  const PUCT_INIT=parseFloat(cfg.actor_mcts_puct_init);
+  const PUCT_BASE=parseFloat(cfg.actor_mcts_puct_base);
+  const DISC=parseFloat(cfg.actor_mcts_reward_discount);
+  // 符号補正は drawTree/drawEval/drawArgmax と同一規約: 子は n.player、root は to_play。
+  const sg=kids.map(k=>(((k.player||toPlay)==="W") ? -1 : 1));
+  const rw=kids.map(k=>k.r||0);
+  const tr=kids.map(k=>(k.q_trace||[]).slice().sort((a,b)=>a[0]-b[0]));
+  let tMax=0;
+  for(const t of tr) for(const e of t) if(e[0]>tMax) tMax=e[0];
+  if(tMax<1) tMax=Math.max((rootN||1)-1,1);
+  const ptr=kids.map(()=>0), n=kids.map(()=>0), mean=kids.map(()=>0);
+  const score=kids.map(()=>[]), qterm=kids.map(()=>[]), uterm=kids.map(()=>[]);
+  for(let t=1;t<=tMax;t++){
+    // 時刻 t の選択の直前の状態へ進める。比較は "<t" であって "<=t" ではない
+    // (t のエントリはこの選択の結果。mcts.cpp:193,201。詳細と実測はこの関数の上のコメント)。
+    for(let i=0;i<kids.length;i++){
+      while(ptr[i]<tr[i].length && tr[i][ptr[i]][0]<t){ mean[i]=tr[i][ptr[i]][1]; ptr[i]++; n[i]++; }
+    }
+    const total=t-1;
+    const bias=PUCT_INIT+Math.log((1+total+PUCT_BASE)/PUCT_BASE);
+    let sw=0, s=0;
+    for(let i=0;i<kids.length;i++) if(n[i]>0){ sw+=sg[i]*(rw[i]+DISC*mean[i]); s+=1; }
+    const iq=(sw-1)/(s+1);
+    for(let i=0;i<kids.length;i++){
+      const u=(bias*kids[i].P*Math.sqrt(total))/(1+n[i]);
+      const q=(n[i]===0) ? iq : sg[i]*(rw[i]+DISC*mean[i]);
+      score[i].push([t,q+u]); qterm[i].push([t,q]); uterm[i].push([t,u]);
+    }
+  }
+  return {tMax, score, qterm, uterm};
+}
+
+// config が無い記録 (旧コーパス等) では描かずに理由を出す。
+function qtMessage(svg, lg, msg){
+  const W=svg.clientWidth||800, H=210;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  svg.innerHTML=`<text x="${W/2}" y="${H/2}" fill="var(--muted)" font-size="12"`
+    +` text-anchor="middle" font-family="var(--mono)">${msg}</text>`;
+  lg.innerHTML="";
+}
+
+function drawQTrace(){
+  const svg=document.getElementById("qtrace"), lg=document.getElementById("qtLegend");
+  const cfg=GAME.config;
+  if(!cfg){ return qtMessage(svg,lg,"この記録には config が無いため Q+U を再計算できない"); }
+  const PUCT_INIT=parseFloat(cfg.actor_mcts_puct_init);
+  const PUCT_BASE=parseFloat(cfg.actor_mcts_puct_base);
+  const DISC=parseFloat(cfg.actor_mcts_reward_discount);
+  if(!isFinite(PUCT_INIT)||!isFinite(PUCT_BASE)||!isFinite(DISC)||PUCT_BASE<=0){
+    return qtMessage(svg,lg,"config に puct_init / puct_base / reward_discount が揃っていない");
+  }
+  const kids=cur().root.children||[];
+  if(!kids.length){ return qtMessage(svg,lg,"root に子が無い"); }
+
+  const S=quSeries(kids, cur().to_play, cur().root.N, cfg);
+  const tMax=S.tMax;
+  // 選択中ノードが root 直下 (_depth===1) なら、その手を強調し Q 項 / U 項に分解する
+  let selIdx=-1;
+  if(SELECTED && SELECTED._depth===1){
+    for(let i=0;i<kids.length;i++) if(kids[i]._id===SELECTED._id){ selIdx=i; break; }
+  }
+
+  // (A3) 縦軸は ply ごとに実データで自動スケール。分解2本も範囲に含めるので
+  // 選択しても線が枠外に切れることはない。
+  let lo=Infinity, hi=-Infinity;
+  const acc=(arr)=>{ for(const e of arr){ if(e[1]<lo)lo=e[1]; if(e[1]>hi)hi=e[1]; } };
+  for(const a of S.score) acc(a);
+  if(selIdx>=0){ acc(S.qterm[selIdx]); acc(S.uterm[selIdx]); }
+  if(!isFinite(lo)||!isFinite(hi)){ return qtMessage(svg,lg,"描画できる点が無い"); }
+  if(hi-lo<1e-6){ lo-=0.05; hi+=0.05; }
+  const mgn=(hi-lo)*0.06; lo-=mgn; hi+=mgn;
+
+  const W=svg.clientWidth||800, H=210, pad={l:46,r:12,t:12,b:20};
+  const X=(t)=>pad.l+((t-1)/Math.max(tMax-1,1))*(W-pad.l-pad.r);
+  const Y=(v)=>pad.t+(1-(v-lo)/(hi-lo))*(H-pad.t-pad.b);
+  let h="";
+  // 目盛り。軸は ply ごとに変わるので、値のラベルを必ず出す (固定軸との誤読を防ぐ)。
+  for(let g=0;g<=4;g++){
+    const v=lo+(hi-lo)*g/4;
+    h+=`<line x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" stroke="#1b2230" stroke-width="1"/>`;
+    h+=`<text x="4" y="${Y(v)+3}" fill="var(--muted)" font-size="9" font-family="var(--mono)">${v>=0?"+":""}${v.toFixed(2)}</text>`;
+  }
+  if(lo<0&&hi>0){ h+=`<line x1="${pad.l}" y1="${Y(0)}" x2="${W-pad.r}" y2="${Y(0)}" stroke="#2a3445" stroke-width="1"/>`; }
+  h+=`<text x="${pad.l}" y="${H-6}" fill="var(--muted)" font-size="9" font-family="var(--mono)">t=1</text>`;
+  h+=`<text x="${W-pad.r}" y="${H-6}" fill="var(--muted)" font-size="9" font-family="var(--mono)" text-anchor="end">t=${tMax}</text>`;
+
+  const hue=(i)=>`hsl(${Math.round(i*360/kids.length)},70%,62%)`;
+  const path=(arr,col,wd,op,dash)=>`<path d="${arr.map((e,j)=>(j?"L":"M")+X(e[0]).toFixed(2)+","+Y(e[1]).toFixed(2)).join(" ")}"`
+    +` fill="none" stroke="${col}" stroke-width="${wd}" opacity="${op}"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+  let base="", top="", leg="";
+  kids.forEach((k,i)=>{
+    const col=hue(i), on=(i===selIdx), zero=(k.N===0);
+    leg+=`<span style="color:${on?'var(--ink)':'var(--muted)'};${on?'font-weight:700':''}">`
+       +`<i style="border-color:${col}"></i>${coordOf(k)} (N=${k.N})</span>`;
+    const op=on?1:(selIdx<0?0.85:0.28);
+    // 訪問 0 の候補は点線。訪問済みは実線。
+    const seg=path(S.score[i], col, on?2.6:1.2, op, zero?"4 3":null);
+    if(on) top+=seg; else base+=seg;
+  });
+  if(selIdx>=0){
+    // 選択した手だけ Q 項 / U 項に分解して重ねる
+    top+=path(S.qterm[selIdx], "var(--bser)", 1.6, 0.95, "7 3");
+    top+=path(S.uterm[selIdx], "var(--wser)", 1.6, 0.95, "2 3");
+    leg+=`<span style="color:var(--bser)"><i style="border-color:var(--bser)"></i>${coordOf(kids[selIdx])} の Q項</span>`
+       + `<span style="color:var(--wser)"><i style="border-color:var(--wser)"></i>${coordOf(kids[selIdx])} の U項</span>`;
+  }
+  leg+=`<span style="color:var(--muted)">縦軸 ${lo.toFixed(2)}..${hi.toFixed(2)} (点線=N0)</span>`;
+  h+=base+top;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.innerHTML=h;
+  lg.innerHTML=leg;
+}
+
+// ---------- orchestration ----------
+function renderMove(){
+  const root=cur().root; indexTree(root);
+  document.getElementById("metaInfo").textContent=`${GAME.game} · ${GAME.board_size}×${GAME.board_size} · to_play=${cur().to_play} · root N=${root.N}`;
+  document.getElementById("boardHint").textContent= SELECTED&&SELECTED.row!=null
+    ? `盤面 = root から選択ノードまでの手順をルール適用(石は裏返し済み)。番号=着手順。`
+    : `丸 = 候補手(root children)。色と数字は指標(${METRIC})。青枠 = 実際に選ばれた手。`;
+  drawBoard(); drawTree(); drawEval(); drawArgmax(); drawChart(); drawQTrace();
+}
+function select(n){SELECTED=n;drawBoard();drawTree();drawEval();drawQTrace();}
+function gotoPly(i){PLY=Math.max(0,Math.min(GAME.moves.length-1,i));SELECTED=null;
+  document.getElementById("plySlider").value=PLY;
+  document.getElementById("plyPos").textContent=`手番 ${PLY} / ${GAME.moves.length-1}`+(cur().played?` · 着手 ${cur().played}`:"");
+  renderMove();}
+function load(obj){
+  GAME=normalize(obj); PLY=0; SELECTED=null;
+  const sl=document.getElementById("plySlider"); sl.max=GAME.moves.length-1; sl.value=0;
+  gotoPly(0);
+}
+
+document.getElementById("metricSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("#metricSeg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");METRIC=b.dataset.m;renderMove();});
+document.getElementById("plySlider").addEventListener("input",e=>gotoPly(+e.target.value));
+document.getElementById("prevBtn").onclick=()=>gotoPly(PLY-1);
+document.getElementById("nextBtn").onclick=()=>gotoPly(PLY+1);
+document.getElementById("playBtn").onclick=function(){
+  if(playTimer){clearInterval(playTimer);playTimer=null;this.textContent="▶";return;}
+  this.textContent="⏸";
+  playTimer=setInterval(()=>{ if(PLY>=GAME.moves.length-1){clearInterval(playTimer);playTimer=null;document.getElementById("playBtn").textContent="▶";return;} gotoPly(PLY+1); },800);
+};
+document.getElementById("fileIn").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{try{load(JSON.parse(r.result));}catch(err){alert("JSON解析失敗: "+err.message);}};r.readAsText(f);});
+const dlg=document.getElementById("pasteDlg");
+document.getElementById("pasteBtn").onclick=()=>{document.getElementById("pasteArea").value="";dlg.showModal();};
+document.getElementById("pasteOk").addEventListener("click",e=>{const t=document.getElementById("pasteArea").value.trim();if(!t)return;
+  try{load(JSON.parse(t));}catch(err){e.preventDefault();alert("JSON解析失敗: "+err.message);}});
+window.addEventListener("resize",()=>{if(GAME){drawChart();drawQTrace();}});
+
+load(SINGLE);
+</script>
+</body>
+</html>
