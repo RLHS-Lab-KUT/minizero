@@ -8,7 +8,12 @@
 # 色付き盤面表示が stdout の tree_json 行に割り込んで JSON が壊れる。
 #
 # 使い方（コンテナ内で実行）:
-#   xrl_viz/capture_opening.sh MODEL CFG "E3 D3 C4" [MAX_GENMOVE] > out.json
+#   xrl_viz/capture_opening.sh MODEL CFG "E3 D3 C4" [MAX_GENMOVE] [ERRFILE] > out.json
+#
+# ERRFILE を渡すと、エンジンの stderr 全文をそのパスに恒久保存する
+# (ディレクトリではなくファイルのパス。親ディレクトリは自動で作る)。
+# 省略時は保存しない(従来どおり)。既存の呼び出し元(gen_corpus.sh /
+# gen_corpus14.sh)は4引数なので影響を受けない。
 #
 # 固定手は先手(黒)から交互に割り当てる。上の例なら B=E3, W=D3, B=C4 で、
 # 以降 ply 3 (白番) からエンジンが指す。
@@ -19,6 +24,7 @@ MODEL="${1:?model folder or .pt path required}"
 CONF="${2:?cfg required}"
 OPENING="${3:?opening moves required, e.g. \"E3 D3 C4\"}"
 MAX="${4:-61}"
+ERRFILE="${5:-}"         # stderr の保存先ファイルのパス。空なら保存しない
 GAME_TYPE="othello"
 
 read -r -a FIXED <<< "$OPENING"
@@ -40,18 +46,42 @@ gen_cmds() {
 }
 
 TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
+ERRTMP="$(mktemp)"
+trap 'rm -f "$TMP" "$ERRTMP"' EXIT
 echo "[capture_opening] opening = $OPENING ($NFIX 手固定), max $MAX plies..." 1>&2
 
 MODEL_PT="$MODEL"
 [ -d "$MODEL" ] && MODEL_PT=$(ls -t "$MODEL"/model/*.pt "$MODEL"/*.pt 2>/dev/null | head -n1)
+# stderr は捨てずに $ERRTMP へ。先頭に cfg ダンプ全文が入る
+# (mode_handler.cpp:129。-conf_str 適用後の値)。以降は "(Version: ...)"、
+# genmove ごとの盤面表示・探索情報 (zero_actor.cpp:52)、Spent Time
+# (console.cpp:171) が続く。cfg_dump.py 側で "(Version:" で打ち切る。
 gen_cmds | "build/${GAME_TYPE}/minizero_${GAME_TYPE}" -mode console \
-    -conf_file "$CONF" -conf_str "nn_file_name=${MODEL_PT}" > "$TMP" 2>/dev/null
+    -conf_file "$CONF" -conf_str "nn_file_name=${MODEL_PT}" > "$TMP" 2> "$ERRTMP"
 
-python3 - "$TMP" "$NFIX" "$MAX" "$OPENING" <<'PY'
+# cfg を辞書にする。59 キー無ければ cfg_dump.py 側が非ゼロ終了するので、
+# set -e によりここで止まる(黙って進めない)。
+CFG_JSON="$(python3 xrl_viz/cfg_dump.py "$ERRTMP")"
+
+# ERRFILE 指定時のみ stderr 全文を恒久保存する。ANSI カラーはそのまま。
+if [ -n "$ERRFILE" ]; then
+  mkdir -p "$(dirname "$ERRFILE")"
+  cp "$ERRTMP" "$ERRFILE"
+  echo "[capture_opening] stderr を保存: $ERRFILE ($(wc -c < "$ERRFILE") B)" 1>&2
+fi
+
+python3 - "$TMP" "$NFIX" "$MAX" "$OPENING" "$CFG_JSON" <<'PY'
 import sys, json
 
 path, nfix, maxmv, opening = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+config = json.loads(sys.argv[5])
+
+# cfg のキー数を再検査する。cfg_dump.py 側でも見ているが、
+# 受け渡しの途中で欠けていないことをここでも確かめる(黙って進めない)。
+EXPECTED_NUM_PARAMS = 59
+if len(config) != EXPECTED_NUM_PARAMS:
+    sys.exit(f"[capture_opening] 致命的: cfg のキーが {len(config)} 件、"
+             f"期待 {EXPECTED_NUM_PARAMS} 件")
 with open(path) as f:
     bodies = [ln[2:].strip() for ln in f if ln.startswith("= ")]
 
@@ -94,7 +124,7 @@ for k in range(maxmv):
     prev = tj
 
 out = {"game": game, "board_size": bsize, "opening": opening_rec,
-       "initial_board": t0["board"], "moves": moves}
+       "initial_board": t0["board"], "config": config, "moves": moves}
 print(json.dumps(out))
 sys.stderr.write(f"[capture_opening] collected {len(moves)} plies (ply {nfix}..{nfix+len(moves)-1})\n")
 PY
