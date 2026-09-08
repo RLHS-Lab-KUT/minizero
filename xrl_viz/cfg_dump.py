@@ -26,8 +26,11 @@
   したがって "(Version:" の行で打ち切り、かつキーの形 (^[a-z][a-z0-9_]*=)
   にマッチする行だけを拾う。二重の防御にしてある。
 
-othello ビルドで登録されるパラメータは 59 個 (configuration.cpp:92-205、
-ゲーム別ブロック :164-196 に OTHELLO の枝はないので env_board_size のみ)。
+othello ビルドで登録されるパラメータは 62 個。内訳は共通の 60 個
+(configuration.cpp、うち learner_aux_loss_scale と nn_use_corner_aux_head が
+K1/K2 で増えた分) と、環境の env_board_size、ゲーム別ブロックの OTHELLO の枝に
+ある env_othello_use_corner_feature。az-control (7958e3) のビルドでは 59 個
+だったので、そのころの stderr を読ませるとここで止まる。
 
 使い方:
   モジュールとして  from cfg_dump import parse_cfg_dump
@@ -39,7 +42,7 @@ import re
 import sys
 
 # othello ビルドで ConfigureLoader に登録されるパラメータ数
-EXPECTED_NUM_PARAMS = 59
+EXPECTED_NUM_PARAMS = 62
 
 # ダンプの終端。mode_handler.cpp:69 が readConfiguration() の直後に出す。
 VERSION_MARKER = "(Version:"

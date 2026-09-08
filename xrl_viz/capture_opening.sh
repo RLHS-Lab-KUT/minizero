@@ -59,7 +59,7 @@ MODEL_PT="$MODEL"
 gen_cmds | "build/${GAME_TYPE}/minizero_${GAME_TYPE}" -mode console \
     -conf_file "$CONF" -conf_str "nn_file_name=${MODEL_PT}" > "$TMP" 2> "$ERRTMP"
 
-# cfg を辞書にする。59 キー無ければ cfg_dump.py 側が非ゼロ終了するので、
+# cfg を辞書にする。62 キー無ければ cfg_dump.py 側が非ゼロ終了するので、
 # set -e によりここで止まる(黙って進めない)。
 CFG_JSON="$(python3 xrl_viz/cfg_dump.py "$ERRTMP")"
 
@@ -78,7 +78,7 @@ config = json.loads(sys.argv[5])
 
 # cfg のキー数を再検査する。cfg_dump.py 側でも見ているが、
 # 受け渡しの途中で欠けていないことをここでも確かめる(黙って進めない)。
-EXPECTED_NUM_PARAMS = 59
+EXPECTED_NUM_PARAMS = 62
 if len(config) != EXPECTED_NUM_PARAMS:
     sys.exit(f"[capture_opening] 致命的: cfg のキーが {len(config)} 件、"
              f"期待 {EXPECTED_NUM_PARAMS} 件")
