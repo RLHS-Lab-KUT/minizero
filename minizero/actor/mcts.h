@@ -43,6 +43,7 @@ public:
     inline void setGumbelEliminatedRound(int round) { gumbel_eliminated_round_ = round; }
     inline void setGumbelDecisionScore(float score) { gumbel_decision_score_ = score; }
     inline void addQTrace(int simulation, float q) { q_trace_.emplace_back(simulation, q); }
+    inline void setAux(const std::vector<float>& aux) { aux_ = aux; }
 
     // getter
     inline int getHiddenStateDataIndex() const { return hidden_state_data_index_; }
@@ -58,6 +59,7 @@ public:
     inline int getGumbelEliminatedRound() const { return gumbel_eliminated_round_; }
     inline float getGumbelDecisionScore() const { return gumbel_decision_score_; }
     inline const std::vector<std::pair<int, float>>& getQTrace() const { return q_trace_; }
+    inline const std::vector<float>& getAux() const { return aux_; }
     inline virtual MCTSNode* getChild(int index) const override { return (index < num_children_ ? static_cast<MCTSNode*>(first_child_) + index : nullptr); }
 
 protected:
@@ -87,6 +89,11 @@ protected:
     // so every node on one simulation's path shares the same index. Cleared in reset(),
     // which is what MCTS::expand() calls when it reuses a node for a new position.
     std::vector<std::pair<int, float>> q_trace_;
+    // Auxiliary-head output for this node, in the board frame (for explainability logging;
+    // not used by the search itself). Only nodes that were evaluated as a leaf get one, so an
+    // empty vector means "never evaluated" -- distinct from a head that predicted all zeros.
+    // Cleared in reset(), which MCTS::expand() calls when it reuses a node.
+    std::vector<float> aux_;
 };
 
 class HiddenStateData {

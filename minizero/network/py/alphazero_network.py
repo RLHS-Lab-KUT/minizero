@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .network_unit import ResidualBlock, PolicyNetwork, ValueNetwork, DiscreteValueNetwork
+from .network_unit import ResidualBlock, PolicyNetwork, ValueNetwork, DiscreteValueNetwork, AuxNetwork
 
 
 class AlphaZeroNetwork(nn.Module):
@@ -16,7 +16,8 @@ class AlphaZeroNetwork(nn.Module):
                  num_blocks,
                  action_size,
                  num_value_hidden_channels,
-                 discrete_value_size):
+                 discrete_value_size,
+                 aux_size=0):
         super(AlphaZeroNetwork, self).__init__()
         self.game_name = game_name
         self.num_input_channels = num_input_channels
@@ -29,6 +30,7 @@ class AlphaZeroNetwork(nn.Module):
         self.action_size = action_size
         self.num_value_hidden_channels = num_value_hidden_channels
         self.discrete_value_size = discrete_value_size
+        self.aux_size = aux_size
 
         self.conv = nn.Conv2d(num_input_channels, num_hidden_channels, kernel_size=3, padding=1)
         self.bn = nn.BatchNorm2d(num_hidden_channels)
@@ -38,6 +40,12 @@ class AlphaZeroNetwork(nn.Module):
             self.value = ValueNetwork(num_hidden_channels, hidden_channel_height, hidden_channel_width, num_value_hidden_channels)
         else:
             self.value = DiscreteValueNetwork(num_hidden_channels, hidden_channel_height, hidden_channel_width, num_value_hidden_channels, discrete_value_size)
+        # The auxiliary head is *not created* when it is disabled: an empty ModuleList holds no
+        # parameters, so it draws nothing from the RNG and a run with aux_size=0 initialises
+        # exactly the same weights as before this head existed. Created last for the same
+        # reason. A ModuleList (rather than an Optional module) keeps forward() scriptable.
+        self.aux_heads = nn.ModuleList(
+            [AuxNetwork(num_hidden_channels, hidden_channel_height, hidden_channel_width, aux_size)] if aux_size > 0 else [])
 
     @torch.jit.export
     def get_type_name(self):
@@ -87,6 +95,10 @@ class AlphaZeroNetwork(nn.Module):
     def get_discrete_value_size(self):
         return self.discrete_value_size
 
+    @torch.jit.export
+    def get_aux_size(self):
+        return self.aux_size
+
     def forward(self, state):
         x = self.conv(state)
         x = self.bn(x)
@@ -101,13 +113,22 @@ class AlphaZeroNetwork(nn.Module):
         # value
         if self.discrete_value_size == 1:
             value = self.value(x)
-            return {"policy_logit": policy_logit,
-                    "policy": policy,
-                    "value": value}
+            output = {"policy_logit": policy_logit,
+                      "policy": policy,
+                      "value": value}
         else:
             value_logit = self.value(x)
             value = torch.softmax(value_logit, dim=1)
-            return {"policy_logit": policy_logit,
-                    "policy": policy,
-                    "value_logit": value_logit,
-                    "value": value}
+            output = {"policy_logit": policy_logit,
+                      "policy": policy,
+                      "value_logit": value_logit,
+                      "value": value}
+
+        # auxiliary head; the ModuleList is empty when the head is disabled, so this loop adds
+        # nothing and the returned dict is exactly the one built above
+        for aux_head in self.aux_heads:
+            aux_logit = aux_head(x)
+            output["aux_logit"] = aux_logit
+            output["aux"] = torch.sigmoid(aux_logit)
+
+        return output

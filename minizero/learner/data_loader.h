@@ -29,6 +29,9 @@ public:
     float* reward_;
     float* loss_scale_;
     int* sampled_index_;
+    // Auxiliary-head labels; nullptr when the head is disabled, in which case no label is
+    // computed and nothing is written (so the sampling path stays exactly as it was).
+    float* aux_ = nullptr;
 };
 
 class ReplayBuffer {

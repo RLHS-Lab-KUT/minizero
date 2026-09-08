@@ -21,7 +21,8 @@ typedef BaseBoardAction<kOthelloNumPlayer> OthelloAction;
 // The four corners, in board-position order. Corners can never be flipped: getFlipPoint()
 // only flips a run of opponent stones that is bracketed by one of our stones, and the two
 // squares bracketing a corner along any line are off the board. So a corner changes state
-// exactly once, empty -> colour.
+// exactly once, empty -> colour. The auxiliary head relies on this to read a corner's
+// capture off the action list without replaying the board.
 const int kNumCornerAux = 4;
 inline std::array<int, kNumCornerAux> getCornerPositions(int board_size)
 {
@@ -51,6 +52,10 @@ public:
     std::vector<float> getActionFeatures(const OthelloAction& action, utils::Rotation rotation = utils::Rotation::kRotationNone) const override;
     // 4 base planes (+1 corner-threat plane when env_othello_use_corner_feature is set).
     inline int getNumInputChannels() const override { return config::env_othello_use_corner_feature ? 5 : 4; }
+    // 4-dim corner auxiliary head; 0 disables it. Slot order is board-position order:
+    // 0 = A1 (pos 0), 1 = H1 (pos n-1), 2 = A8 (pos n(n-1)), 3 = H8 (pos n*n-1).
+    inline int getAuxSize() const override { return config::nn_use_corner_aux_head ? kNumCornerAux : 0; }
+    std::vector<float> unrotateAuxOutput(const std::vector<float>& aux, utils::Rotation rotation) const override;
     inline int getPolicySize() const override { return getBoardSize() * getBoardSize() + 1; }
     std::string toString() const override;
     inline std::string name() const override { return kOthelloName + "_" + std::to_string(getBoardSize()) + "x" + std::to_string(getBoardSize()); }
@@ -102,6 +107,9 @@ private:
 class OthelloEnvLoader : public BaseBoardEnvLoader<OthelloAction, OthelloEnv> {
 public:
     std::vector<float> getActionFeatures(const int pos, utils::Rotation rotation = utils::Rotation::kRotationNone) const override;
+    // K2 label: 1 for a corner that the opponent of the player to move at `pos` takes within
+    // the next 4 plies. Empty vector when nn_use_corner_aux_head is off.
+    std::vector<float> getAuxLabel(const int pos, utils::Rotation rotation = utils::Rotation::kRotationNone) const override;
     inline bool isPassAction(const OthelloAction& action) const { return (action.getActionID() == getBoardSize() * getBoardSize()); }
     inline std::vector<float> getValue(const int pos) const { return {getReturn()}; }
     inline std::string name() const override { return kOthelloName + "_" + std::to_string(getBoardSize()) + "x" + std::to_string(getBoardSize()); }

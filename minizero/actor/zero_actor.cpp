@@ -86,6 +86,9 @@ void ZeroActor::afterNNEvaluation(const std::shared_ptr<NetworkOutput>& network_
             std::shared_ptr<AlphaZeroNetworkOutput> alphazero_output = std::static_pointer_cast<AlphaZeroNetworkOutput>(network_output);
             getMCTS()->expand(leaf_node, calculateAlphaZeroActionPolicy(env_transition, alphazero_output, feature_rotation_));
             getMCTS()->backup(node_path, alphazero_output->value_, env_transition.getReward());
+            // Auxiliary head (logging only; empty when the network has no such head). Stored in
+            // the board frame, like the policy above, so consumers do not need the rotation.
+            if (!alphazero_output->aux_.empty()) { leaf_node->setAux(env_transition.unrotateAuxOutput(alphazero_output->aux_, feature_rotation_)); }
         } else {
             getMCTS()->backup(node_path, env_transition.getEvalScore(), env_transition.getReward());
         }

@@ -25,6 +25,10 @@ class MinizeroDadaLoader:
         self.features = np.zeros(py.get_batch_size() * py.get_nn_num_input_channels() * py.get_nn_input_channel_height() * py.get_nn_input_channel_width(), dtype=np.float32)
         self.loss_scale = np.zeros(py.get_batch_size(), dtype=np.float32)
         self.value_accumulator = np.ones(1) if py.get_nn_discrete_value_size() == 1 else np.arange(-int(py.get_nn_discrete_value_size() / 2), int(py.get_nn_discrete_value_size() / 2) + 1)
+        # auxiliary head labels; None (not an empty array) when the head is off, so the C++
+        # side receives a null pointer and skips computing the label at all
+        self.aux_size = py.get_nn_aux_size()
+        self.aux = np.zeros(py.get_batch_size() * self.aux_size, dtype=np.float32) if self.aux_size > 0 else None
         if py.get_nn_type_name() == "alphazero":
             self.action_features = None
             self.policy = np.zeros(py.get_batch_size() * py.get_nn_action_size(), dtype=np.float32)
@@ -48,7 +52,7 @@ class MinizeroDadaLoader:
                 self.data_list.pop(0)
 
     def sample_data(self, device='cpu'):
-        self.data_loader.sample_data(self.features, self.action_features, self.policy, self.value, self.reward, self.loss_scale, self.sampled_index)
+        self.data_loader.sample_data(self.features, self.action_features, self.policy, self.value, self.reward, self.loss_scale, self.sampled_index, self.aux)
         features = torch.FloatTensor(self.features).view(py.get_batch_size(), py.get_nn_num_input_channels(), py.get_nn_input_channel_height(), py.get_nn_input_channel_width()).to(device)
         action_features = None if self.action_features is None else torch.FloatTensor(self.action_features).view(py.get_batch_size(),
                                                                                                                  -1,
@@ -60,8 +64,9 @@ class MinizeroDadaLoader:
         reward = None if self.reward is None else torch.FloatTensor(self.reward).view(py.get_batch_size(), -1, py.get_nn_discrete_value_size()).to(device)
         loss_scale = torch.FloatTensor(self.loss_scale / np.amax(self.loss_scale)).to(device)
         sampled_index = self.sampled_index
+        aux = None if self.aux is None else torch.FloatTensor(self.aux).view(py.get_batch_size(), self.aux_size).to(device)
 
-        return features, action_features, policy, value, reward, loss_scale, sampled_index
+        return features, action_features, policy, value, reward, loss_scale, sampled_index, aux
 
     def update_priority(self, sampled_index, batch_values):
         batch_values = (batch_values * self.value_accumulator).sum(axis=1)
@@ -90,7 +95,8 @@ class Model:
                                       py.get_nn_action_size(),
                                       py.get_nn_num_value_hidden_channels(),
                                       py.get_nn_discrete_value_size(),
-                                      py.get_nn_type_name())
+                                      py.get_nn_type_name(),
+                                      py.get_nn_aux_size())
         self.network.to(self.device)
         if py.get_optimizer().lower() == "adam":
             self.optimizer = optim.Adam(self.network.parameters(),
@@ -148,6 +154,17 @@ def calculate_loss(network_output, label_policy, label_value, label_reward, loss
     return loss_policy, loss_value, loss_reward
 
 
+def calculate_aux_loss(network_output, label_aux, loss_scale):
+    """BCE over the auxiliary head's independent sigmoid outputs.
+
+    Aggregation: summed over the 4 corner dimensions, then averaged over the batch. So
+    learner_aux_loss_scale=1.0 already weighs 4 BCE terms, not one; dividing by 4 would put
+    it on the same footing as a single-dimension loss such as loss_value.
+    """
+    loss_aux = nn.functional.binary_cross_entropy_with_logits(network_output["aux_logit"], label_aux, reduction='none')
+    return (loss_aux.sum(dim=1) * loss_scale).mean()
+
+
 def add_training_info(training_info, key, value):
     if key not in training_info:
         training_info[key] = 0
@@ -171,7 +188,7 @@ def train(model, training_dir, data_loader, start_iter, end_iter):
     training_info = {}
     for i in range(1, py.get_training_step() + 1):
         model.optimizer.zero_grad()
-        features, action_features, label_policy, label_value, label_reward, loss_scale, sampled_index = data_loader.sample_data(model.device)
+        features, action_features, label_policy, label_value, label_reward, loss_scale, sampled_index, label_aux = data_loader.sample_data(model.device)
 
         if py.get_nn_type_name() == "alphazero":
             network_output = model.network(features)
@@ -182,6 +199,12 @@ def train(model, training_dir, data_loader, start_iter, end_iter):
             add_training_info(training_info, 'loss_policy', loss_policy.item())
             add_training_info(training_info, 'accuracy_policy', calculate_accuracy(network_output["policy_logit"], label_policy[:, 0], py.get_batch_size()))
             add_training_info(training_info, 'loss_value', loss_value.item())
+
+            # auxiliary head
+            if label_aux is not None and "aux_logit" in network_output:
+                loss_aux = calculate_aux_loss(network_output, label_aux, loss_scale)
+                loss = loss + py.get_aux_loss_scale() * loss_aux
+                add_training_info(training_info, 'loss_aux', loss_aux.item())
         elif py.get_nn_type_name() == "muzero":
             network_output = model.network(features)
             batch_values = network_output['value'].to('cpu').detach().numpy()

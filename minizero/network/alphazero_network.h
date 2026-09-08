@@ -1,5 +1,6 @@
 #pragma once
 
+#include "configuration.h"
 #include "network.h"
 #include "utils.h"
 #include <algorithm>
@@ -15,6 +16,9 @@ public:
     float value_;
     std::vector<float> policy_;
     std::vector<float> policy_logits_;
+    // Auxiliary head output (sigmoid probabilities). Left empty when the network has no
+    // auxiliary head, which is how consumers tell "no head" from "predicted 0".
+    std::vector<float> aux_;
 
     AlphaZeroNetworkOutput(int policy_size)
     {
@@ -72,6 +76,16 @@ public:
         assert(policy_logits_output.numel() == batch_size_ * getActionSize());
         assert(value_output.numel() == batch_size_ * getDiscreteValueSize());
 
+        // Auxiliary head. Guarded by the config flag *and* by the key actually being present,
+        // so an old model without the head still loads when the flag is left on by mistake.
+        const bool has_aux = config::nn_use_corner_aux_head && forward_result.find("aux") != forward_result.end();
+        torch::Tensor aux_output;
+        int aux_size = 0;
+        if (has_aux) {
+            aux_output = forward_result.at("aux").toTensor().to(at::kCPU);
+            aux_size = aux_output.numel() / batch_size_;
+        }
+
         const int policy_size = getActionSize();
         std::vector<std::shared_ptr<NetworkOutput>> network_outputs;
         for (int i = 0; i < batch_size_; ++i) {
@@ -96,6 +110,14 @@ public:
                                                                    0.0f,
                                                                    [&start_value](const float& sum, const float& value) { return sum + value * start_value++; });
                 alphazero_network_output->value_ = utils::invertValue(alphazero_network_output->value_);
+            }
+
+            // aux
+            if (has_aux) {
+                alphazero_network_output->aux_.resize(aux_size);
+                std::copy(aux_output.data_ptr<float>() + i * aux_size,
+                          aux_output.data_ptr<float>() + (i + 1) * aux_size,
+                          alphazero_network_output->aux_.begin());
             }
         }
 

@@ -46,6 +46,9 @@ PYBIND11_MODULE(minizero_py, m)
     m.def("get_momentum", []() { return config::learner_momentum; });
     m.def("get_weight_decay", []() { return config::learner_weight_decay; });
     m.def("get_value_loss_scale", []() { return config::learner_value_loss_scale; });
+    m.def("get_aux_loss_scale", []() { return config::learner_aux_loss_scale; });
+    m.def("use_corner_aux_head", []() { return config::nn_use_corner_aux_head; });
+    m.def("get_nn_aux_size", []() { return getEnvInstance().getAuxSize(); });
     m.def("get_game_name", []() { return getEnvInstance().name(); });
     m.def("get_nn_num_input_channels", []() { return getEnvInstance().getNumInputChannels(); });
     m.def("get_nn_input_channel_height", []() { return getEnvInstance().getInputChannelHeight(); });
@@ -70,7 +73,10 @@ PYBIND11_MODULE(minizero_py, m)
             },
             py::call_guard<py::gil_scoped_release>())
         .def(
-            "sample_data", [](learner::DataLoader& data_loader, py::array_t<float>& features, py::array_t<float>& action_features, py::array_t<float>& policy, py::array_t<float>& value, py::array_t<float>& reward, py::array_t<float>& loss_scale, py::array_t<int>& sampled_index) {
+            "sample_data", [](learner::DataLoader& data_loader, py::array_t<float>& features, py::array_t<float>& action_features, py::array_t<float>& policy, py::array_t<float>& value, py::array_t<float>& reward, py::array_t<float>& loss_scale, py::array_t<int>& sampled_index, py::object aux) {
+                // aux is None whenever the auxiliary head is disabled; the null pointer is what
+                // makes DataLoaderThread skip the label entirely.
+                data_loader.getSharedData()->getDataPtr()->aux_ = (aux.is_none() ? nullptr : static_cast<float*>(aux.cast<py::array_t<float>>().request().ptr));
                 data_loader.getSharedData()->getDataPtr()->features_ = static_cast<float*>(features.request().ptr);
                 data_loader.getSharedData()->getDataPtr()->action_features_ = static_cast<float*>(action_features.request().ptr);
                 data_loader.getSharedData()->getDataPtr()->policy_ = static_cast<float*>(policy.request().ptr);

@@ -152,6 +152,13 @@ void DataLoaderThread::setAlphaZeroTrainingData(int batch_index)
     std::copy(features.begin(), features.end(), getSharedData()->getDataPtr()->features_ + features.size() * batch_index);
     std::copy(policy.begin(), policy.end(), getSharedData()->getDataPtr()->policy_ + policy.size() * batch_index);
     std::copy(value.begin(), value.end(), getSharedData()->getDataPtr()->value_ + value.size() * batch_index);
+
+    // auxiliary head labels; getAuxLabel() consumes no randomness, so enabling the head does
+    // not shift the RNG stream that features/policy sampling above depends on
+    if (getSharedData()->getDataPtr()->aux_ != nullptr) {
+        std::vector<float> aux = env_loader.getAuxLabel(pos, rotation);
+        std::copy(aux.begin(), aux.end(), getSharedData()->getDataPtr()->aux_ + aux.size() * batch_index);
+    }
 }
 
 void DataLoaderThread::setMuZeroTrainingData(int batch_index)

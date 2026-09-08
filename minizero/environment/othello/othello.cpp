@@ -305,6 +305,22 @@ std::vector<float> OthelloEnv::getFeatures(utils::Rotation rotation) const
     return features;
 }
 
+std::vector<float> OthelloEnv::unrotateAuxOutput(const std::vector<float>& aux, utils::Rotation rotation) const
+{
+    if (static_cast<int>(aux.size()) != kNumCornerAux) { return aux; }
+    const std::array<int, kNumCornerAux> corners = getCornerPositions(board_size_);
+    std::vector<float> unrotated(kNumCornerAux, 0.0f);
+    for (int i = 0; i < kNumCornerAux; ++i) {
+        // Training rotates a label for board corner i into the slot of corner R(i), so the
+        // board-frame value of corner i is read back out of that slot.
+        const int rotated_pos = getRotatePosition(corners[i], rotation);
+        for (int j = 0; j < kNumCornerAux; ++j) {
+            if (corners[j] == rotated_pos) { unrotated[i] = aux[j]; }
+        }
+    }
+    return unrotated;
+}
+
 std::vector<float> OthelloEnv::getActionFeatures(const OthelloAction& action, utils::Rotation rotation /*= utils::Rotation::kRotationNone*/) const
 {
     std::vector<float> action_features(board_size_ * board_size_, 0.0f);
@@ -323,6 +339,35 @@ std::vector<float> OthelloEnvLoader::getActionFeatures(const int pos, utils::Rot
         if (action_id < static_cast<int>(action_pairs_.size())) { action_features[action_id] = 1.0f; }
     }
     return action_features;
+}
+
+std::vector<float> OthelloEnvLoader::getAuxLabel(const int pos, utils::Rotation rotation /* = utils::Rotation::kRotationNone */) const
+{
+    if (!config::nn_use_corner_aux_head) { return {}; }
+    std::vector<float> label(kNumCornerAux, 0.0f);
+    const int num_actions = static_cast<int>(action_pairs_.size());
+    if (pos < 0 || pos >= num_actions) { return label; }
+
+    const int board_size = getBoardSize();
+    const std::array<int, kNumCornerAux> corners = getCornerPositions(board_size);
+    const Player opponent = getNextPlayer(action_pairs_[pos].first.getPlayer(), kOthelloNumPlayer);
+    // A corner is played at most once per game (it can never be flipped back to empty), so
+    // scanning the action ids of the next 4 plies is enough -- no board replay needed. PASS
+    // has action id board_size*board_size and therefore never matches a corner.
+    const int last_ply = std::min(pos + 4, num_actions - 1);
+    for (int ply = pos + 1; ply <= last_ply; ++ply) {
+        const OthelloAction& action = action_pairs_[ply].first;
+        if (action.getPlayer() != opponent) { continue; }
+        for (int i = 0; i < kNumCornerAux; ++i) {
+            if (action.getActionID() != corners[i]) { continue; }
+            // Same convention as getPolicy(): the value is written at the rotated index.
+            const int rotated_pos = getRotatePosition(corners[i], rotation);
+            for (int j = 0; j < kNumCornerAux; ++j) {
+                if (corners[j] == rotated_pos) { label[j] = 1.0f; }
+            }
+        }
+    }
+    return label;
 }
 
 } // namespace minizero::env::othello

@@ -311,6 +311,23 @@ void appendNodeJson(std::ostringstream& oss, const actor::MCTSNode* node, int bs
         first_q = false;
     }
     oss << "]";
+    // Corner auxiliary head, board frame. The four slots are in board-position order, i.e.
+    // [0]=A1 (pos 0), [1]=H1 (pos bsize-1), [2]=A8 (pos bsize*(bsize-1)), [3]=H8 (pos bsize*bsize-1),
+    // matching kNumCornerAux / getCornerPositions() in othello.h.
+    // Only emitted when the head is enabled, so a run without it produces byte-identical JSON
+    // to before this field existed. A node that was never evaluated as a leaf has no stored
+    // output, and emits null rather than a vector of zeros the head never produced.
+    if (config::nn_use_corner_aux_head) {
+        oss << ",\"aux\":";
+        const std::vector<float>& aux = node->getAux();
+        if (aux.empty()) {
+            oss << "null";
+        } else {
+            oss << "[";
+            for (size_t i = 0; i < aux.size(); ++i) { oss << (i ? "," : "") << aux[i]; }
+            oss << "]";
+        }
+    }
     oss << ",\"children\":[";
     bool first = true;
     for (int i = 0; i < node->getNumChildren(); ++i) {

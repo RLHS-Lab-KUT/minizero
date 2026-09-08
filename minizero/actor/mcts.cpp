@@ -17,6 +17,7 @@ void MCTSNode::reset()
     gumbel_eliminated_round_ = -99;
     gumbel_decision_score_ = std::numeric_limits<float>::quiet_NaN();
     q_trace_.clear();
+    aux_.clear();
     first_child_ = nullptr;
 }
 

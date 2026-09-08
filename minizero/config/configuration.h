@@ -65,6 +65,7 @@ extern float learner_learning_rate;
 extern float learner_momentum;
 extern float learner_weight_decay;
 extern float learner_value_loss_scale;
+extern float learner_aux_loss_scale;
 extern int learner_num_thread;
 
 // network parameters
@@ -73,6 +74,7 @@ extern int nn_num_blocks;
 extern int nn_num_hidden_channels;
 extern int nn_num_value_hidden_channels;
 extern std::string nn_type_name;
+extern bool nn_use_corner_aux_head;
 
 // environment parameters
 extern int env_board_size;

@@ -63,6 +63,7 @@ float learner_learning_rate = 0.02;
 float learner_momentum = 0.9;
 float learner_weight_decay = 0.0001;
 float learner_value_loss_scale = 1.0f;
+float learner_aux_loss_scale = 1.0f;
 int learner_num_thread = 8;
 
 // network parameters
@@ -71,6 +72,7 @@ int nn_num_blocks = 1;
 int nn_num_hidden_channels = 256;
 int nn_num_value_hidden_channels = 256;
 std::string nn_type_name = "alphazero";
+bool nn_use_corner_aux_head = false;
 
 // environment parameters
 int env_board_size = 0;
@@ -151,6 +153,7 @@ void setConfiguration(ConfigureLoader& cl)
     cl.addParameter("learner_momentum", learner_momentum, "hyperparameter for momentum; only for sgd", "Learner");
     cl.addParameter("learner_weight_decay", learner_weight_decay, "hyperparameter for weight decay; usually 0.0001 for sgd, 0 for adam, 0.01 for adamw", "Learner");
     cl.addParameter("learner_value_loss_scale", learner_value_loss_scale, "hyperparameter for scaling of the value loss", "Learner");
+    cl.addParameter("learner_aux_loss_scale", learner_aux_loss_scale, "hyperparameter for scaling of the auxiliary head loss; only used when nn_use_corner_aux_head is true. The loss is a BCE summed over the 4 corner dimensions and averaged over the batch, so scale 1.0 already weighs 4 terms", "Learner");
     cl.addParameter("learner_num_thread", learner_num_thread, "the number of threads for training", "Learner");
 
     // network parameters
@@ -159,6 +162,7 @@ void setConfiguration(ConfigureLoader& cl)
     cl.addParameter("nn_num_hidden_channels", nn_num_hidden_channels, "hyperparameter for the model; the size of the hidden channels in residual blocks", "Network");               // ref: AGZ
     cl.addParameter("nn_num_value_hidden_channels", nn_num_value_hidden_channels, "hyperparameter for the model; the size of the hidden channels in the value network", "Network"); // ref: AGZ
     cl.addParameter("nn_type_name", nn_type_name, "the type of training algorithm and network: alphazero/muzero", "Network");
+    cl.addParameter("nn_use_corner_aux_head", nn_use_corner_aux_head, "true for adding a 4-dim sigmoid auxiliary head predicting whether the opponent takes each corner within 4 plies; only supports othello + alphazero", "Network");
 
     // environment parameters
     cl.addParameter("env_board_size", env_board_size, "the size of board", "Environment");

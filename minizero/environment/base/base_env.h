@@ -94,6 +94,13 @@ public:
     virtual int getHiddenChannelWidth() const = 0;
     virtual int getPolicySize() const = 0;
     virtual int getDiscreteValueSize() const = 0;
+    // Auxiliary-head hooks. The base returns "no auxiliary head", so every game that does not
+    // implement one keeps exactly the current behaviour and the generic code needs no #ifdef.
+    virtual int getAuxSize() const { return 0; }
+    // The auxiliary head is trained on the same rotated frame as the input features, so its
+    // slots come back permuted. Map them back to the board frame, the way the policy is
+    // un-rotated in ZeroActor::calculateAlphaZeroActionPolicy.
+    virtual std::vector<float> unrotateAuxOutput(const std::vector<float>& aux, utils::Rotation rotation) const { return aux; }
     virtual int getRotatePosition(int position, utils::Rotation rotation) const = 0;
     virtual int getRotateAction(int action_id, utils::Rotation rotation) const = 0;
     virtual std::string toString() const = 0;
@@ -274,6 +281,10 @@ public:
             return {std::stoi(dlen), std::stoi(dlen.substr(dlen.find("-") + 1))};
         }
     }
+
+    // Auxiliary-head label. The base returns an empty vector, i.e. "this game has no auxiliary
+    // head", so DataLoaderThread writes nothing and every other game is untouched.
+    virtual std::vector<float> getAuxLabel(const int pos, utils::Rotation rotation = utils::Rotation::kRotationNone) const { return {}; }
 
     virtual std::vector<float> getValue(const int pos) const { return (pos < static_cast<int>(action_pairs_.size()) ? std::vector<float>{std::stof(action_pairs_[pos].second["V"])} : std::vector<float>{0.0f}); }
     virtual std::vector<float> getReward(const int pos) const { return (pos < static_cast<int>(action_pairs_.size()) ? std::vector<float>{std::stof(action_pairs_[pos].second["R"])} : std::vector<float>{0.0f}); }
