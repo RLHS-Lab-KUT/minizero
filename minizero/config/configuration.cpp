@@ -84,6 +84,7 @@ bool env_gomoku_exactly_five_stones = true;
 bool env_havannah_use_swap_rule = true;
 bool env_hex_use_swap_rule = true;
 bool env_killallgo_use_seki = false;
+bool env_othello_use_corner_feature = false;
 int env_rubiks_scramble_rotate = 5;
 int env_surakarta_no_capture_plies = 50;
 int env_tetris_block_puzzle_num_holding_block = 3;
@@ -186,6 +187,8 @@ void setConfiguration(ConfigureLoader& cl)
 #elif KILLALLGO
     cl.addParameter("env_killallgo_ko_rule", env_go_ko_rule, "the ko rules in Killall-Go: positional (only consider stones), situational (consider stones and the turn)", "Environment");
     cl.addParameter("env_killallgo_use_seki", env_killallgo_use_seki, "true for enabling seki", "Environment");
+#elif OTHELLO
+    cl.addParameter("env_othello_use_corner_feature", env_othello_use_corner_feature, "true for adding an input plane marking the legal moves that let the opponent play a corner next; changes nn_num_input_channels from 4 to 5", "Environment");
 #elif RUBIKS
     cl.addParameter("env_rubiks_scramble_rotate", env_rubiks_scramble_rotate, "the number random rotations from the initial state of a rubik's cube", "Enviroment");
 #elif SURAKARTA

@@ -3,6 +3,7 @@
 #include "base_env.h"
 #include "configuration.h"
 #include <algorithm>
+#include <array>
 #include <bitset>
 #include <string>
 #include <unordered_map>
@@ -16,6 +17,19 @@ const int kMaxOthelloBoardSize = 16;
 typedef std::bitset<kMaxOthelloBoardSize * kMaxOthelloBoardSize> OthelloBitboard;
 
 typedef BaseBoardAction<kOthelloNumPlayer> OthelloAction;
+
+// The four corners, in board-position order. Corners can never be flipped: getFlipPoint()
+// only flips a run of opponent stones that is bracketed by one of our stones, and the two
+// squares bracketing a corner along any line are off the board. So a corner changes state
+// exactly once, empty -> colour.
+const int kNumCornerAux = 4;
+inline std::array<int, kNumCornerAux> getCornerPositions(int board_size)
+{
+    return {0,
+            board_size - 1,
+            board_size * (board_size - 1),
+            board_size * board_size - 1};
+}
 
 class OthelloEnv : public BaseBoardEnv<OthelloAction> {
 public:
@@ -35,7 +49,8 @@ public:
     float getEvalScore(bool is_resign = false) const override;
     std::vector<float> getFeatures(utils::Rotation rotation = utils::Rotation::kRotationNone) const override;
     std::vector<float> getActionFeatures(const OthelloAction& action, utils::Rotation rotation = utils::Rotation::kRotationNone) const override;
-    inline int getNumInputChannels() const override { return 4; }
+    // 4 base planes (+1 corner-threat plane when env_othello_use_corner_feature is set).
+    inline int getNumInputChannels() const override { return config::env_othello_use_corner_feature ? 5 : 4; }
     inline int getPolicySize() const override { return getBoardSize() * getBoardSize() + 1; }
     std::string toString() const override;
     inline std::string name() const override { return kOthelloName + "_" + std::to_string(getBoardSize()) + "x" + std::to_string(getBoardSize()); }
@@ -56,19 +71,24 @@ public:
 
 private:
     Player eval() const;
+    // These three only read their arguments, so they are const; getFeatures() needs to call
+    // them from a const context to build the corner-threat plane.
     OthelloBitboard getCanPutPoint(
         int direction,
         OthelloBitboard mask,
         OthelloBitboard empty_board,
         OthelloBitboard opponent_board,
-        OthelloBitboard player_board);
+        OthelloBitboard player_board) const;
     OthelloBitboard getFlipPoint(
         int direction,
         OthelloBitboard mask,
         OthelloBitboard placed_pos,
         OthelloBitboard opponent_board,
-        OthelloBitboard player_board);
-    OthelloBitboard getCandidateAlongDirectionBoard(int direction, OthelloBitboard candidate);
+        OthelloBitboard player_board) const;
+    OthelloBitboard getCandidateAlongDirectionBoard(int direction, OthelloBitboard candidate) const;
+    // Bit set on every legal move of the side to move that would make at least one corner a
+    // legal move for the opponent. All-zero when the side to move can only pass.
+    OthelloBitboard getCornerThreatBoard() const;
     std::string getCoordinateString() const;
 
     int dir_step_[8]; // 8 directions

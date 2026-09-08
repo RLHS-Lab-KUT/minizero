@@ -58,14 +58,14 @@ void OthelloEnv::reset()
 }
 
 // return the bitset that candidate shift toward the direction
-OthelloBitboard OthelloEnv::getCandidateAlongDirectionBoard(int direction, OthelloBitboard candidate)
+OthelloBitboard OthelloEnv::getCandidateAlongDirectionBoard(int direction, OthelloBitboard candidate) const
 {
     return (direction > 0) ? (candidate << direction) : (candidate >> abs(direction));
 }
 
 // return the pieces that should be flip after the action
 OthelloBitboard OthelloEnv::getFlipPoint(
-    int direction, OthelloBitboard mask, OthelloBitboard placed_pos, OthelloBitboard opponent_board, OthelloBitboard player_board)
+    int direction, OthelloBitboard mask, OthelloBitboard placed_pos, OthelloBitboard opponent_board, OthelloBitboard player_board) const
 {
     OthelloBitboard candidate;
     OthelloBitboard tmp_flip;
@@ -86,7 +86,7 @@ OthelloBitboard OthelloEnv::getFlipPoint(
 
 // return the candidate that can put the piece
 OthelloBitboard OthelloEnv::getCanPutPoint(
-    int direction, OthelloBitboard mask, OthelloBitboard empty_board, OthelloBitboard opponent_board, OthelloBitboard player_board)
+    int direction, OthelloBitboard mask, OthelloBitboard empty_board, OthelloBitboard opponent_board, OthelloBitboard player_board) const
 {
     OthelloBitboard candidate;
     OthelloBitboard moves;
@@ -234,10 +234,59 @@ Player OthelloEnv::eval() const
         return Player::kPlayerNone;
     }
 }
+// Mark every legal move of the side to move after which at least one corner becomes a legal
+// move for the opponent. Built with the same bitboard primitives act() uses, so the simulated
+// position matches what act() would produce, without copying the environment.
+OthelloBitboard OthelloEnv::getCornerThreatBoard() const
+{
+    OthelloBitboard threat; // default-constructed to all zero
+
+    const OthelloBitboard& my_legal = legal_board_.get(turn_);
+    if (my_legal.none()) { return threat; } // only PASS is legal -> all-zero plane
+
+    OthelloBitboard corner_mask;
+    for (int corner : getCornerPositions(board_size_)) { corner_mask.set(corner, 1); }
+
+    const Player opponent = getNextPlayer(turn_, kOthelloNumPlayer);
+    const OthelloBitboard& my_board = board_.get(turn_);
+    const OthelloBitboard& opponent_board = board_.get(opponent);
+    const OthelloBitboard occupied = board_.get(Player::kPlayer1) | board_.get(Player::kPlayer2);
+    // A corner can only become legal while it is still empty, and our move never empties a
+    // square, so an all-occupied corner set means the plane is all zero.
+    if ((corner_mask & (one_board_ ^ occupied)).none()) { return threat; }
+
+    for (int pos = 0; pos < board_size_ * board_size_; ++pos) {
+        if (my_legal[pos] == 0) { continue; }
+
+        OthelloBitboard placed_pos;
+        placed_pos.set(pos, 1);
+        // act() places the stone before computing the flips, so pass the same player board.
+        const OthelloBitboard my_board_with_placed = my_board | placed_pos;
+        OthelloBitboard flip;
+        for (int i = 0; i < 8; ++i) {
+            flip |= getFlipPoint(dir_step_[i], mask_[i], placed_pos, opponent_board, my_board_with_placed);
+        }
+
+        const OthelloBitboard next_my_board = my_board_with_placed | flip;
+        const OthelloBitboard next_opponent_board = opponent_board & ~flip;
+        const OthelloBitboard next_empty_board = one_board_ ^ (next_my_board | next_opponent_board);
+        OthelloBitboard opponent_legal;
+        for (int i = 0; i < 8; ++i) {
+            opponent_legal |= getCanPutPoint(dir_step_[i], mask_[i], next_empty_board, next_my_board, next_opponent_board);
+        }
+        if ((opponent_legal & corner_mask).any()) { threat.set(pos, 1); }
+    }
+    return threat;
+}
+
 std::vector<float> OthelloEnv::getFeatures(utils::Rotation rotation) const
 {
+    const int num_channels = getNumInputChannels();
+    // Computed in board coordinates once, then read through rotation_pos like every other
+    // plane below, so the added plane follows the same rotation convention as channels 0-3.
+    const OthelloBitboard corner_threat = (num_channels > 4 ? getCornerThreatBoard() : OthelloBitboard());
     std::vector<float> features;
-    for (int channel = 0; channel < 4; ++channel) {
+    for (int channel = 0; channel < num_channels; ++channel) {
         for (int pos = 0; pos < board_size_ * board_size_; ++pos) {
             int rotation_pos = getRotatePosition(pos, utils::reversed_rotation[static_cast<int>(rotation)]);
             if (channel == 0) {
@@ -248,6 +297,8 @@ std::vector<float> OthelloEnv::getFeatures(utils::Rotation rotation) const
                 features.push_back((turn_ == Player::kPlayer1 ? 1.0f : 0.0f));
             } else if (channel == 3) {
                 features.push_back((turn_ == Player::kPlayer2 ? 1.0f : 0.0f));
+            } else if (channel == 4) {
+                features.push_back((corner_threat[rotation_pos] == 1 ? 1.0f : 0.0f));
             }
         }
     }
