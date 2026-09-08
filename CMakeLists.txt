@@ -6,6 +6,7 @@ project(minizero)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_package(Torch REQUIRED)
 find_package(Boost COMPONENTS system thread iostreams)
 find_package(ale REQUIRED)
