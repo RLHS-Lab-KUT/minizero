@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """(II) 14 軌道コーパスの一覧と健全性検査。
 
-既存 4 軌道（xrl_viz/data/corpus/src_S{1..4}_n128.json）と
-新規 10 軌道（xrl_viz/data/corpus14/line_*_n128.json）をまとめて扱う。
+14 軌道（src_S{1..4}_n128.json の 4 本と line_<着手列>_n128.json の 10 本）が
+1 つのディレクトリに揃っている構成を対象とする。line_* が data/corpus14/、
+src_S* が data/corpus/ に分かれていた旧レイアウトには対応しない。
 カテゴライズや解釈は書かない。データが揃ったことの確認まで。
 
-使い方: python3 xrl_viz/audit_corpus14.py
+使い方: python3 xrl_viz/audit_corpus14.py [コーパスのディレクトリ]
+        ディレクトリを省略すると xrl_viz/data/corpus_qt を見る。
 """
 import json
 import os
@@ -20,22 +22,24 @@ from audit_corpus import (coord, rc, walk_nodes, line_from_capture,  # noqa: E40
 B = 8
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 14 軌道。既存 4 本は src_S*、残り 10 本は corpus14/line_*。
+DEFAULT_DIR = "xrl_viz/data/corpus_qt"
+
+# 14 軌道。4 本は src_S*、残り 10 本は line_*。ディレクトリは引数で与える。
 LINES = [
-    ("E3 D3 C2", "xrl_viz/data/corpus14/line_E3D3C2_n128.json"),
-    ("E3 D3 C3", "xrl_viz/data/corpus14/line_E3D3C3_n128.json"),
-    ("E3 D3 C4", "xrl_viz/data/corpus/src_S1_n128.json"),
-    ("E3 D3 C5", "xrl_viz/data/corpus14/line_E3D3C5_n128.json"),
-    ("E3 D3 C6", "xrl_viz/data/corpus/src_S4_n128.json"),
-    ("E3 F3 G3", "xrl_viz/data/corpus14/line_E3F3G3_n128.json"),
-    ("E3 F3 F4", "xrl_viz/data/corpus/src_S2_n128.json"),
-    ("E3 F3 C5", "xrl_viz/data/corpus14/line_E3F3C5_n128.json"),
-    ("E3 F3 D6", "xrl_viz/data/corpus14/line_E3F3D6_n128.json"),
-    ("E3 F5 C6", "xrl_viz/data/corpus14/line_E3F5C6_n128.json"),
-    ("E3 F5 D6", "xrl_viz/data/corpus/src_S3_n128.json"),
-    ("E3 F5 E6", "xrl_viz/data/corpus14/line_E3F5E6_n128.json"),
-    ("E3 F5 F6", "xrl_viz/data/corpus14/line_E3F5F6_n128.json"),
-    ("E3 F5 G6", "xrl_viz/data/corpus14/line_E3F5G6_n128.json"),
+    ("E3 D3 C2", "line_E3D3C2_n128.json"),
+    ("E3 D3 C3", "line_E3D3C3_n128.json"),
+    ("E3 D3 C4", "src_S1_n128.json"),
+    ("E3 D3 C5", "line_E3D3C5_n128.json"),
+    ("E3 D3 C6", "src_S4_n128.json"),
+    ("E3 F3 G3", "line_E3F3G3_n128.json"),
+    ("E3 F3 F4", "src_S2_n128.json"),
+    ("E3 F3 C5", "line_E3F3C5_n128.json"),
+    ("E3 F3 D6", "line_E3F3D6_n128.json"),
+    ("E3 F5 C6", "line_E3F5C6_n128.json"),
+    ("E3 F5 D6", "src_S3_n128.json"),
+    ("E3 F5 E6", "line_E3F5E6_n128.json"),
+    ("E3 F5 F6", "line_E3F5F6_n128.json"),
+    ("E3 F5 G6", "line_E3F5G6_n128.json"),
 ]
 
 
@@ -65,17 +69,26 @@ def expected_board(moves):
 
 
 def main():
-    for tag, d in (("既存4軌道", "xrl_viz/data/corpus/ENGINE_COMMIT.txt"),
-                   ("新規10軌道", "xrl_viz/data/corpus14/ENGINE_COMMIT.txt")):
-        p = os.path.join(ROOT, d)
-        print(f"{tag} のエンジンコミット: "
-              + (open(p).read().strip() if os.path.exists(p) else "(記録なし)"))
+    argv = sys.argv[1:]
+    if len(argv) > 1:
+        raise SystemExit(f"引数はコーパスのディレクトリ 1 つだけ。渡された引数: {argv}")
+    corpus_dir = argv[0] if argv else DEFAULT_DIR
+    # 絶対パスを渡された場合は os.path.join がそちらを優先するので分岐は要らない。
+    if not os.path.isdir(os.path.join(ROOT, corpus_dir)):
+        raise SystemExit(f"ディレクトリが無い: {corpus_dir}")
+    # 14 軌道が 1 ディレクトリに揃っている前提なので ENGINE_COMMIT.txt も 1 つ。
+    p = os.path.join(ROOT, corpus_dir, "ENGINE_COMMIT.txt")
+    print(f"コーパス: {corpus_dir}")
+    print("エンジンのコミット: "
+          + (open(p).read().strip() if os.path.exists(p) else "(記録なし)"))
     print()
+
+    lines = [(line, os.path.join(corpus_dir, name)) for line, name in LINES]
 
     # ---- 開きの到達局面の照合 ----
     print("=== (a) 各開きが全手合法で意図した局面に到達するか ===")
     ng = 0
-    for line, rel in LINES:
+    for line, rel in lines:
         d = json.load(open(os.path.join(ROOT, rel)))
         rec = [o["move"] for o in d["opening"]]
         eb, ep = expected_board(line.split())
@@ -96,7 +109,7 @@ def main():
     print(f"  {'着手列':10s} {'ply数':>6s} {'root欠損':>8s} {'子0のroot':>10s} "
           f"{'終局後':>7s} {'不整合':>7s}  p_noise")
     noise_all = set()
-    for line, rel in LINES:
+    for line, rel in lines:
         d = json.load(open(os.path.join(ROOT, rel)))
         ms = d["moves"]
         missing = sum(1 for m in ms if not m.get("root"))
@@ -124,7 +137,7 @@ def main():
     print(f"  {'着手列':10s} {'記録ply':>7s} {'着手数':>6s} {'PASS':>5s} "
           f"{'黒':>4s} {'白':>4s} {'石差(黒-白)':>11s} {'空':>4s} {'結果':>6s}  ファイル")
     boards = {}
-    for line, rel in LINES:
+    for line, rel in lines:
         d = json.load(open(os.path.join(ROOT, rel)))
         seq = line_from_capture(d)
         fb = final_board(d["initial_board"], seq)

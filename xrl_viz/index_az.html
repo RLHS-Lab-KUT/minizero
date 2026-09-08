@@ -148,7 +148,12 @@ let GAME=null, PLY=0, METRIC="N", SELECTED=null, playTimer=null;
 const SINGLE={"game":"othello_8x8","board_size":8,"to_play":"B","played":null,"board":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,"B","W",null,null,null],[null,null,null,"W","B",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],"root":{"action_id":null,"row":null,"col":null,"player":null,"N":17,"Q":-0.10448,"P":0,"p_logit":0,"p_noise":0,"v":-0.1144,"r":0,"children":[{"action_id":34,"row":4,"col":2,"player":"B","N":4,"Q":-0.103356,"P":0.271433,"p_logit":11.8787,"p_noise":-0.620364,"v":-0.0980872,"r":0,"children":[{"action_id":44,"row":5,"col":4,"player":"W","N":3,"Q":-0.105113,"P":0.992427,"p_logit":14.4338,"p_noise":0,"v":-0.113884,"r":0,"children":[]}]},{"action_id":43,"row":5,"col":3,"player":"B","N":4,"Q":-0.101427,"P":0.267204,"p_logit":12.5633,"p_noise":0.0798844,"v":-0.0998248,"r":0,"children":[]},{"action_id":20,"row":2,"col":4,"player":"B","N":4,"Q":-0.107698,"P":0.23194,"p_logit":11.6732,"p_noise":-0.668622,"v":-0.0980872,"r":0,"children":[]},{"action_id":29,"row":3,"col":5,"player":"B","N":4,"Q":-0.102957,"P":0.229177,"p_logit":12.5691,"p_noise":0.239271,"v":-0.0980872,"r":0,"children":[]}]}};
 
 const fmt=(x)=> x==null?"—":(typeof x==="number"?(Number.isInteger(x)?x:x.toFixed(4)):x);
-const coordOf=(n)=> n.row==null?"root":COLS[n.col]+(n.row+1);
+// root と PASS の判別。row/col はどちらも null になるので区別できない
+// (console.cpp:267 が root に、:270-275 が PASS に null を入れる)。
+// action_id で判別する: root は null、PASS は盤面のマス数 (othello.h:50)。
+const isRoot=(n)=> n.action_id==null;
+const isPass=(n)=> !isRoot(n) && n.action_id===GAME.board_size*GAME.board_size;
+const coordOf=(n)=> isRoot(n)?"root":(isPass(n)?"PASS":COLS[n.col]+(n.row+1));
 const cur=()=> GAME.moves[PLY];
 const metricVal=(n)=> METRIC==="N"?n.N:METRIC==="Q"?n.Q:n.P;
 const other=(p)=> p==="B"?"W":"B";
@@ -165,7 +170,7 @@ function normalize(obj){
 }
 function indexTree(root){let id=0;(function w(n,p,d){n._id=id++;n._parent=p;n._depth=d;(n.children||[]).forEach(c=>w(c,n,d+1));})(root,null,0);}
 function allNodes(root){const a=[];(function g(n){a.push(n);(n.children||[]).forEach(g);})(root);return a;}
-function pathToSelected(){if(!SELECTED||SELECTED.row==null)return [];const p=[];let n=SELECTED;while(n&&n.row!=null){p.unshift(n);n=n._parent;}return p;}
+function pathToSelected(){if(!SELECTED||isRoot(SELECTED))return [];const p=[];let n=SELECTED;while(n&&!isRoot(n)){p.unshift(n);n=n._parent;}return p;}
 // root直下で「実際に選ばれた手(played)」に対応するノードの _id
 function playedChildId(){
   const played=cur().played; if(!played) return null;
@@ -188,7 +193,8 @@ function applyMove(board,row,col,player,n){
 }
 function boardForSelected(){
   const path=pathToSelected(); const n=GAME.board_size; let b=cur().board;
-  for(const k of path){ b=applyMove(b,k.row,k.col,k.player,n); }
+  // PASS は盤面を変えない。applyMove に null の row/col を渡さないためにも必要。
+  for(const k of path){ if(isPass(k)) continue; b=applyMove(b,k.row,k.col,k.player,n); }
   return b;
 }
 
@@ -213,15 +219,21 @@ function drawBoard(){
     let i=1;
     for(const k of path){
       const last=(i===path.length);
-      h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.18}" fill="${last?'var(--sel)':'var(--path)'}" stroke="#0b0e14" stroke-width="0.6"/>`;
-      h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="#11151c" font-size="9" text-anchor="middle" font-family="var(--mono)" font-weight="700">${i}</text>`;
+      // PASS は置く場所が無いのでマーカーを描かない。番号は連番のまま進めるので
+      // PASS の位置で盤上の番号が 1 つ飛ぶ。
+      if(!isPass(k)){
+        h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.18}" fill="${last?'var(--sel)':'var(--path)'}" stroke="#0b0e14" stroke-width="0.6"/>`;
+        h+=`<text x="${cx(k.col)}" y="${cy(k.row)+3}" fill="#11151c" font-size="9" text-anchor="middle" font-family="var(--mono)" font-weight="700">${i}</text>`;
+      }
       i++;
     }
   } else {
-    const kids=cur().root.children||[], vals=kids.map(metricVal), lo=Math.min(...vals), hi=Math.max(...vals);
+    // 配色スケールは盤上に描ける候補だけで決める (PASS を混ぜるとスケールが歪む)
+    const kids=cur().root.children||[], vals=kids.filter(k=>!isPass(k)).map(metricVal);
+    const lo=Math.min(...vals), hi=Math.max(...vals);
     const norm=(x)=>hi===lo?0.5:(x-lo)/(hi-lo);
     const played=cur().played;
-    for(const k of kids){ if(k.row==null)continue;
+    for(const k of kids){ if(isPass(k))continue;
       const t=norm(metricVal(k)), col=lerp([60,90,140],[255,180,84],t);
       const isPlayed=played&&coordOf(k).toUpperCase()===played.toUpperCase();
       h+=`<circle cx="${cx(k.col)}" cy="${cy(k.row)}" r="${cell*0.40}" fill="rgba(${col[0]},${col[1]},${col[2]},0.32)" stroke="${isPlayed?'var(--played)':`rgb(${col[0]},${col[1]},${col[2]})`}" stroke-width="${isPlayed?3:1.5}"/>`;
@@ -250,7 +262,7 @@ function drawTree(){
   }
   for(const n of all){
     const sel=SELECTED&&SELECTED._id===n._id, onp=pathIds.has(n._id), isPlayed=(n._id===playedId);
-    const label=n.row==null?"root":(n.player+" "+coordOf(n));
+    const label=isRoot(n)?"root":(n.player+" "+coordOf(n));
     // Q は getMean()(fixed-frame, 黒視点で正)。手番視点へ補正: 子は着手player、rootは to_play が白なら反転。
     const qStm=((n.player||cur().to_play)==="W" ? -n.Q : n.Q);
     const sub=METRIC==="N"?("N="+n.N):METRIC==="Q"?("Q="+qStm.toFixed(3)):("P="+n.P.toFixed(2));
@@ -272,8 +284,8 @@ function drawEval(){
   // 子は着手 player、root(player=null) は to_play が白なら反転。drawTree/drawChart と同一規約。
   const isW=((n.player||cur().to_play)==="W");
   const qStm=isW ? -n.Q : n.Q, vStm=isW ? -n.v : n.v;
-  const rows=[["手",n.row==null?"root":`<span class="pill ${pcls}">${n.player}</span> ${coordOf(n)}`],
-    ["action_id",fmt(n.action_id)],["row, col",n.row==null?"—":`${n.row}, ${n.col}`],
+  const rows=[["手",isRoot(n)?"root":`<span class="pill ${pcls}">${n.player}</span> ${coordOf(n)}`],
+    ["action_id",fmt(n.action_id)],["row, col",(isRoot(n)||isPass(n))?"—":`${n.row}, ${n.col}`],
     ["N (visits)",fmt(n.N)],["Q (mean · 手番視点)",fmt(qStm)],["P (prior)",fmt(n.P)],
     ["p_logit",fmt(n.p_logit)],["p_noise",fmt(n.p_noise)],["v (network · 手番視点)",fmt(vStm)],
     ["r (reward)",fmt(n.r)],["children",(n.children||[]).length],["depth",n._depth],
@@ -486,9 +498,19 @@ function drawQTrace(){
 function renderMove(){
   const root=cur().root; indexTree(root);
   document.getElementById("metaInfo").textContent=`${GAME.game} · ${GAME.board_size}×${GAME.board_size} · to_play=${cur().to_play} · root N=${root.N}`;
-  document.getElementById("boardHint").textContent= SELECTED&&SELECTED.row!=null
-    ? `盤面 = root から選択ノードまでの手順をルール適用(石は裏返し済み)。番号=着手順。`
-    : `丸 = 候補手(root children)。色と数字は指標(${METRIC})。青枠 = 実際に選ばれた手。`;
+  let hint;
+  if(SELECTED && !isRoot(SELECTED)){
+    hint = `盤面 = root から選択ノードまでの手順をルール適用(石は裏返し済み)。番号=着手順(PASS は番号が飛ぶ)。`;
+  } else {
+    hint = `丸 = 候補手(root children)。色と数字は指標(${METRIC})。青枠 = 実際に選ばれた手。`;
+    // PASS は盤上に丸を描けないので、候補として存在することを文言で補う。
+    // これが無いと合法手が PASS だけの ply で候補表示が空になる。
+    const pk=(root.children||[]).filter(isPass);
+    for(const k of pk){
+      hint += ` PASS も候補（N=${k.N} / Q=${fmt(k.Q)} / P=${fmt(k.P)}、現在の指標 ${METRIC}=${METRIC==="N"?k.N:metricVal(k).toFixed(4)}）。`;
+    }
+  }
+  document.getElementById("boardHint").textContent = hint;
   drawBoard(); drawTree(); drawEval(); drawArgmax(); drawChart(); drawQTrace();
 }
 function select(n){SELECTED=n;drawBoard();drawTree();drawEval();drawQTrace();}
