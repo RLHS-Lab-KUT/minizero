@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""(II) 14 軌道コーパスの一覧と健全性検査。
+"""(II) コーパスの一覧と健全性検査。
 
-14 軌道（src_S{1..4}_n128.json の 4 本と line_<着手列>_n128.json の 10 本）が
+3 手固定の 14 軌道（src_S{1..4}_n128.json の 4 本と line_<着手列>_n128.json の
+10 本）と、0 手固定の 1 本（free_n128.json。ply 0 からエンジンが自分で指す）が
 1 つのディレクトリに揃っている構成を対象とする。line_* が data/corpus14/、
 src_S* が data/corpus/ に分かれていた旧レイアウトには対応しない。
 カテゴライズや解釈は書かない。データが揃ったことの確認まで。
+
+固定手数は LINES の着手列から数えるので決め打ちしていない。0 手固定の記録は
+opening が空、moves[0].ply が 0、moves[0].board が初期盤面になる。
+
+LINES に挙げたファイルが無い場合はその 1 行を飛ばす。0 手固定の 1 本を持たない
+既存コーパス（data/corpus_qt）をそのまま監査できるようにするためである。ただし
+黙って減らすと本数の取り違えに気づけないので、飛ばした記録は必ず名前を挙げて
+出す。data/corpus14 は src_S{1..4} を持たない旧レイアウトなので 5 本飛ぶ。
 
 使い方: python3 xrl_viz/audit_corpus14.py [コーパスのディレクトリ]
         ディレクトリを省略すると xrl_viz/data/corpus_qt を見る。
@@ -24,8 +33,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_DIR = "xrl_viz/data/corpus_qt"
 
-# 14 軌道。4 本は src_S*、残り 10 本は line_*。ディレクトリは引数で与える。
+# 監査対象。3 手固定の 14 軌道（4 本は src_S*、残り 10 本は line_*）と、
+# 0 手固定の 1 本。ディレクトリは引数で与える。
+# 第 1 要素は固定手の着手列で、0 手固定はこれが空文字になる。
 LINES = [
+    ("", "free_n128.json"),
     ("E3 D3 C2", "line_E3D3C2_n128.json"),
     ("E3 D3 C3", "line_E3D3C3_n128.json"),
     ("E3 D3 C4", "src_S1_n128.json"),
@@ -56,6 +68,11 @@ def cell_to_rc(s):
     return int(s[1:]) - 1, ord(s[0].upper()) - ord("A")
 
 
+def label(line):
+    """表に出す名前。0 手固定は着手列が空なので、そのままだと空欄になる。"""
+    return line if line else "(0手固定)"
+
+
 def expected_board(moves):
     """開きを打った後の盤面と手番。違法手があれば例外。"""
     b, p = start(), "B"
@@ -76,14 +93,26 @@ def main():
     # 絶対パスを渡された場合は os.path.join がそちらを優先するので分岐は要らない。
     if not os.path.isdir(os.path.join(ROOT, corpus_dir)):
         raise SystemExit(f"ディレクトリが無い: {corpus_dir}")
-    # 14 軌道が 1 ディレクトリに揃っている前提なので ENGINE_COMMIT.txt も 1 つ。
+    # 全記録が 1 ディレクトリに揃っている前提なので ENGINE_COMMIT.txt も 1 つ。
     p = os.path.join(ROOT, corpus_dir, "ENGINE_COMMIT.txt")
     print(f"コーパス: {corpus_dir}")
     print("エンジンのコミット: "
           + (open(p).read().strip() if os.path.exists(p) else "(記録なし)"))
     print()
 
-    lines = [(line, os.path.join(corpus_dir, name)) for line, name in LINES]
+    # 無いファイルは飛ばすが、黙って減らさずに何を飛ばしたかを出す。
+    lines, skipped = [], []
+    for line, name in LINES:
+        rel = os.path.join(corpus_dir, name)
+        (lines if os.path.exists(os.path.join(ROOT, rel)) else skipped).append((line, rel))
+    print(f"監査する記録 {len(lines)} 件 / LINES に挙げた記録 {len(LINES)} 件")
+    if skipped:
+        print(f"ファイルが無いので飛ばす記録 {len(skipped)} 件:")
+        for line, rel in skipped:
+            print(f"  {label(line):10s} {rel}")
+    if not lines:
+        raise SystemExit(f"監査できる記録が 1 件も無い: {corpus_dir}")
+    print()
 
     # ---- 開きの到達局面の照合 ----
     print("=== (a) 各開きが全手合法で意図した局面に到達するか ===")
@@ -95,10 +124,11 @@ def main():
         m0 = d["moves"][0]
         ok_seq = rec == line.split()
         ok_brd = m0["board"] == eb
-        ok_ply = m0["ply"] == 3 and m0["to_play"] == ep
+        # 記録の先頭 ply は固定手数に等しい。0 手固定なら 0。決め打ちしない。
+        ok_ply = m0["ply"] == len(line.split()) and m0["to_play"] == ep
         if not (ok_seq and ok_brd and ok_ply):
             ng += 1
-        print(f"  {line:10s} 記録の opening {' '.join(rec):10s} 一致 {'Y' if ok_seq else 'N'}"
+        print(f"  {label(line):10s} 記録の opening {' '.join(rec):10s} 一致 {'Y' if ok_seq else 'N'}"
               f" / moves[0].board が期待盤面と一致 {'Y' if ok_brd else 'N'}"
               f" / ply {m0['ply']} 手番 {m0['to_play']} {'Y' if ok_ply else 'N'}")
     print(f"  NG {ng} 件")
@@ -128,7 +158,7 @@ def main():
                 bad += 1
         vals = {n.get("p_noise") for m in ms for n in walk_nodes(m["root"])}
         noise_all |= vals
-        print(f"  {line:10s} {len(ms):6d} {missing:8d} {nokid:10d} {term:7d} {bad:7d}  {vals}")
+        print(f"  {label(line):10s} {len(ms):6d} {missing:8d} {nokid:10d} {term:7d} {bad:7d}  {vals}")
     print(f"  全記録の p_noise の値集合: {noise_all}")
 
     # ---- 一覧 ----
@@ -148,24 +178,24 @@ def main():
         empty = 64 - nb - nw
         res = "黒勝ち" if nb > nw else ("白勝ち" if nw > nb else "引分")
         boards[line] = fb
-        print(f"  {line:10s} {len(d['moves']):7d} {nmv:6d} {npass:5d} {nb:4d} {nw:4d} "
+        print(f"  {label(line):10s} {len(d['moves']):7d} {nmv:6d} {npass:5d} {nb:4d} {nw:4d} "
               f"{nb - nw:11d} {empty:4d} {res:>6s}  {rel}")
 
     print()
     print("=== (d) 最終盤面 ===")
-    for line, _ in LINES:
-        print(f"\n  [{line}]")
+    for line, _ in lines:
+        print(f"\n  [{label(line)}]")
         print(board_str(boards[line]))
 
     print()
     print("=== (e) 到達局面の重複 ===")
     seen = {}
-    for line, _ in LINES:
+    for line, _ in lines:
         key = tuple(tuple(r) for r in boards[line])
         if key in seen:
-            print(f"  {line} の最終盤面は {seen[key]} と同一")
+            print(f"  {label(line)} の最終盤面は {label(seen[key])} と同一")
         seen[key] = line
-    print(f"  相異なる最終盤面 {len(seen)} / {len(LINES)}")
+    print(f"  相異なる最終盤面 {len(seen)} / {len(lines)}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,231 @@
+コーパス: xrl_viz/data/az_corpus15
+エンジンのコミット: 6f2b1be7fd88501d85f6508186933d0c778228b3
+
+監査する記録 15 件 / LINES に挙げた記録 15 件
+
+=== (a) 各開きが全手合法で意図した局面に到達するか ===
+  (0手固定)     記録の opening            一致 Y / moves[0].board が期待盤面と一致 Y / ply 0 手番 B Y
+  E3 D3 C2   記録の opening E3 D3 C2   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 D3 C3   記録の opening E3 D3 C3   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 D3 C4   記録の opening E3 D3 C4   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 D3 C5   記録の opening E3 D3 C5   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 D3 C6   記録の opening E3 D3 C6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F3 G3   記録の opening E3 F3 G3   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F3 F4   記録の opening E3 F3 F4   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F3 C5   記録の opening E3 F3 C5   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F3 D6   記録の opening E3 F3 D6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F5 C6   記録の opening E3 F5 C6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F5 D6   記録の opening E3 F5 D6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F5 E6   記録の opening E3 F5 E6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F5 F6   記録の opening E3 F5 F6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  E3 F5 G6   記録の opening E3 F5 G6   一致 Y / moves[0].board が期待盤面と一致 Y / ply 3 手番 W Y
+  NG 0 件
+
+=== (b) ply 数・tree_json の欠損・決定論条件 ===
+  着手列          ply数   root欠損    子0のroot     終局後     不整合  p_noise
+  (0手固定)         64        0          0       4       0  {0}
+  E3 D3 C2       61        0          0       4       0  {0}
+  E3 D3 C3       61        0          0       4       0  {0}
+  E3 D3 C4       61        0          0       4       0  {0}
+  E3 D3 C5       61        0          0       4       0  {0}
+  E3 D3 C6       61        0          0       4       0  {0}
+  E3 F3 G3       61        0          0       4       0  {0}
+  E3 F3 F4       61        0          0       4       0  {0}
+  E3 F3 C5       61        0          0       4       0  {0}
+  E3 F3 D6       61        0          0       4       0  {0}
+  E3 F5 C6       61        0          0       4       0  {0}
+  E3 F5 D6       61        0          0       4       0  {0}
+  E3 F5 E6       61        0          0       4       0  {0}
+  E3 F5 F6       61        0          0       4       0  {0}
+  E3 F5 G6       61        0          0       4       0  {0}
+  全記録の p_noise の値集合: {0}
+
+=== (c) 終局までの手数・最終石差 ===
+  着手列          記録ply    着手数  PASS    黒    白     石差(黒-白)    空     結果  ファイル
+  (0手固定)          64     60     3   35   29           6    0    黒勝ち  xrl_viz/data/az_corpus15/free_n128.json
+  E3 D3 C2        61     60     3    6   58         -52    0    白勝ち  xrl_viz/data/az_corpus15/line_E3D3C2_n128.json
+  E3 D3 C3        61     60     3   33   31           2    0    黒勝ち  xrl_viz/data/az_corpus15/line_E3D3C3_n128.json
+  E3 D3 C4        61     60     3   27   37         -10    0    白勝ち  xrl_viz/data/az_corpus15/src_S1_n128.json
+  E3 D3 C5        61     60     3   22   42         -20    0    白勝ち  xrl_viz/data/az_corpus15/line_E3D3C5_n128.json
+  E3 D3 C6        61     60     3   26   38         -12    0    白勝ち  xrl_viz/data/az_corpus15/src_S4_n128.json
+  E3 F3 G3        61     60     3   29   35          -6    0    白勝ち  xrl_viz/data/az_corpus15/line_E3F3G3_n128.json
+  E3 F3 F4        61     60     3   25   39         -14    0    白勝ち  xrl_viz/data/az_corpus15/src_S2_n128.json
+  E3 F3 C5        61     60     3   34   30           4    0    黒勝ち  xrl_viz/data/az_corpus15/line_E3F3C5_n128.json
+  E3 F3 D6        61     60     3   15   49         -34    0    白勝ち  xrl_viz/data/az_corpus15/line_E3F3D6_n128.json
+  E3 F5 C6        61     60     3   35   29           6    0    黒勝ち  xrl_viz/data/az_corpus15/line_E3F5C6_n128.json
+  E3 F5 D6        61     60     3   35   29           6    0    黒勝ち  xrl_viz/data/az_corpus15/src_S3_n128.json
+  E3 F5 E6        61     60     3   32   32           0    0     引分  xrl_viz/data/az_corpus15/line_E3F5E6_n128.json
+  E3 F5 F6        61     60     3   17   47         -30    0    白勝ち  xrl_viz/data/az_corpus15/line_E3F5F6_n128.json
+  E3 F5 G6        61     60     3   17   47         -30    0    白勝ち  xrl_viz/data/az_corpus15/line_E3F5G6_n128.json
+
+=== (d) 最終盤面 ===
+
+  [(0手固定)]
+    8  X X X X O X X O
+    7  O X X X X X X O
+    6  O X X O X O X O
+    5  O X O X O O X O
+    4  O X X O X O X O
+    3  X X O X X O X O
+    2  X X X O O X X O
+    1  O O O O O O X X
+       A B C D E F G H
+
+  [E3 D3 C2]
+    8  O O O O O O O O
+    7  O O X O X X O O
+    6  O X O O O O O O
+    5  O O X O O O O O
+    4  O O X O O O O O
+    3  O O O O O O O O
+    2  O O O O O O O O
+    1  O O O O O O O O
+       A B C D E F G H
+
+  [E3 D3 C3]
+    8  X O O O X X X O
+    7  X O O O O O O O
+    6  X O X X O O X O
+    5  X O X X O X O O
+    4  X O X X X O X O
+    3  X O X X O X X X
+    2  X O O O X X X X
+    1  X O O O O X X X
+       A B C D E F G H
+
+  [E3 D3 C4]
+    8  X X O O O O O O
+    7  X O O O O X O O
+    6  X O O X X O X O
+    5  X O O X X O X O
+    4  X O X O O X X O
+    3  X X O O O O X O
+    2  X X X X X X X X
+    1  O O O O O O O O
+       A B C D E F G H
+
+  [E3 D3 C5]
+    8  O O O O O O O O
+    7  O X X X O X O O
+    6  O X X O X O X O
+    5  O X O X O O X O
+    4  O X X O O O X O
+    3  O X O O O X X O
+    2  O O X X X X X O
+    1  O O O O O O O O
+       A B C D E F G H
+
+  [E3 D3 C6]
+    8  O O O O O O O O
+    7  O X X X O X O O
+    6  O X X O X O O O
+    5  O X O X X O O O
+    4  O O O X X O O O
+    3  O O X X X X O O
+    2  O X X O O O O O
+    1  X X X X X X X X
+       A B C D E F G H
+
+  [E3 F3 G3]
+    8  X O O O O O O O
+    7  O O O X X X X O
+    6  X X O O X X X O
+    5  X X X O X X X O
+    4  X X X X O O X O
+    3  X O X O X O X O
+    2  X X O X O O O O
+    1  X O O O O O O O
+       A B C D E F G H
+
+  [E3 F3 F4]
+    8  X O O O O O O O
+    7  X O O O O O O O
+    6  X X X O O O O O
+    5  X X X O O X O O
+    4  X X O X O O O O
+    3  X X X X X O O O
+    2  O X O O O X O O
+    1  O X X X X X X O
+       A B C D E F G H
+
+  [E3 F3 C5]
+    8  X O O O O O O O
+    7  X X X X O O O O
+    6  X X X X X O X O
+    5  X O X X O O X O
+    4  X X O X X O X O
+    3  X X X X X X X O
+    2  X X X X X X X O
+    1  O O O O O O O O
+       A B C D E F G H
+
+  [E3 F3 D6]
+    8  O O O O O O O O
+    7  X X X X O O O O
+    6  O X O O X O O O
+    5  O X X O O O O O
+    4  O X O O O O O O
+    3  O X O O O X O O
+    2  O O X X O O X O
+    1  O O O O O O O X
+       A B C D E F G H
+
+  [E3 F5 C6]
+    8  X X X X O X X O
+    7  O X X X X X X O
+    6  O X X O X O X O
+    5  O X O X O O X O
+    4  O X X O X O X O
+    3  X X O X X O X O
+    2  X X X O O X X O
+    1  O O O O O O X X
+       A B C D E F G H
+
+  [E3 F5 D6]
+    8  X X X X O X X O
+    7  O X X X X X X O
+    6  O X X O X O X O
+    5  O X O X O O X O
+    4  O X X O X O X O
+    3  X X O X X O X O
+    2  X X X O O X X O
+    1  O O O O O O X X
+       A B C D E F G H
+
+  [E3 F5 E6]
+    8  X X X X X X X X
+    7  O O O O O O O X
+    6  O X X O X O O X
+    5  O X O X O O X X
+    4  O O X X O X O X
+    3  O O O O O O O X
+    2  O O O O O X X X
+    1  O X X X X X X X
+       A B C D E F G H
+
+  [E3 F5 F6]
+    8  O O O O O O O X
+    7  O O X X O O O O
+    6  O X O O X X O O
+    5  O X O O X X O O
+    4  O O X X O O O O
+    3  O O X O X O O O
+    2  X X O O O X O O
+    1  X O O O O O O O
+       A B C D E F G H
+
+  [E3 F5 G6]
+    8  O O O O O O O O
+    7  O O X X O O X O
+    6  O X O X O O O O
+    5  O X O X O O O O
+    4  O O O O O O O O
+    3  O O O X O O O X
+    2  O X X X X X X X
+    1  O X O O O O O O
+       A B C D E F G H
+
+=== (e) 到達局面の重複 ===
+  E3 F5 C6 の最終盤面は (0手固定) と同一
+  E3 F5 D6 の最終盤面は E3 F5 C6 と同一
+  相異なる最終盤面 13 / 15
