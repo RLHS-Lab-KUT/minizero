@@ -17,12 +17,16 @@
 #
 # 固定手は先手(黒)から交互に割り当てる。上の例なら B=E3, W=D3, B=C4 で、
 # 以降 ply 3 (白番) からエンジンが指す。
+#
+# 第3引数に空文字 "" を渡すと 0 手固定になり、ply 0 (黒番) からエンジンが指す。
+# ${3:?...} はコロン付きなので「未指定または空」で発火する。空文字を正当な
+# 入力として受けるためコロンを外し、${3?...} で未指定のときだけ止めている。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 MODEL="${1:?model folder or .pt path required}"
 CONF="${2:?cfg required}"
-OPENING="${3:?opening moves required, e.g. \"E3 D3 C4\"}"
+OPENING="${3?opening moves required, e.g. \"E3 D3 C4\"}"
 MAX="${4:-61}"
 ERRFILE="${5:-}"         # stderr の保存先ファイルのパス。空なら保存しない
 GAME_TYPE="othello"
