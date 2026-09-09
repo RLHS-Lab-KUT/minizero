@@ -1,0 +1,75 @@
+生成日: 2026-09-09
+バイナリ: build/othello/minizero_othello
+  md5           = 3e0584aeff3765ea2939368a4ad18b06
+  mtime         = 2026-09-08 23:13:17.171579213 +0900
+  自己申告の版  = Version: 35d14a-dirty
+このディレクトリの ENGINE_COMMIT.txt = 6f2b1be7fd88501d85f6508186933d0c778228b3
+
+注: ENGINE_COMMIT.txt は 6f2b1be を指すが、バイナリの自己申告は 35d14a-dirty である。
+バイナリは 2026-09-08 23:13:17 のビルドで、その 1 分 16 秒後に CMakeLists.txt の変更を
+8f66d74 としてコミットしたため、ビルド時の作業ツリーが dirty だった。その後 c4b1d79 と
+6f2b1be を重ねて撮影に至っている。35d14a3..6f2b1be の差分は CMakeLists.txt の 1 行と
+xrl_viz/capture_opening.sh、xrl_viz/gen_corpus15_az.sh の 3 ファイルだけで、エンジンの
+ソース minizero/ は 1 行も変わっていない（git diff --stat 35d14a3..6f2b1be -- minizero/
+が空）。撮影のために再ビルド・再リンクはしていない。
+
+ビルド環境:
+  イメージ      = minizero:rtx5060ti
+  cmake         = 3.25.2
+  cmake 引数    = cmake ../../ -DCMAKE_BUILD_TYPE=Release -DGAME_TYPE=OTHELLO
+                  （scripts/build.sh:37 の呼び出し。build/othello/CMakeCache.txt の
+                    CMAKE_BUILD_TYPE=Release / GAME_TYPE=OTHELLO と一致する）
+  コンパイラ    = /usr/bin/c++（CMAKE_CXX_FLAGS は空）
+  libtorch      = 2.7.1+cu128（/usr/local/libtorch/build-version。Torch_DIR も
+                  /usr/local/libtorch/share/cmake/Torch を指す）
+  CUDA          = 12.8（nvcc release 12.8, V12.8.93）
+  GPU           = NVIDIA GeForce RTX 5060 Ti（driver 570.211.01）
+  ビルド方法    = build/othello の既存 Makefile への make。
+  注: 同じイメージの python3 側の torch は 2.10.0+cu128 だが、この C++ バイナリが
+      リンクしているのは /usr/local/libtorch の 2.7.1+cu128 のほうである。
+
+モデル: othello_8x8_az_n128/model/weight_iter_150000.pt
+  md5           = 66cee4b79d0c32049c816af2786754f0
+  対照モデルである。入力 4ch、補助ヘッド無し。
+
+cfg: xrl_viz/cfg/othello_8x8_az_eval_n128.cfg
+  md5           = d973c345bd97c9013220ce50b993eec7
+  gaz 用 cfg（othello_8x8_gaz_eval_n128.cfg）との差分は、コメントを除けば
+  actor_use_gumbel=false の 1 行だけである。
+
+撮影日時: 2026-09-09 11:36:55 〜 11:37:41 (+0900)、所要 50.4 秒。
+  コンテナ minizero:rtx5060ti の中で
+  xrl_viz/gen_corpus15_az.sh xrl_viz/data/az_corpus15 を 1 回実行した。
+  15 本は同一バイナリ・同一モデル・同一 cfg で連続して撮っている。
+
+構成: 3 手固定の 14 本（tools/opening_branches.py の全列挙）と、
+  0 手固定の 1 本（free_n128.json。ply 0 からエンジンが自分で指す）の計 15 本。
+  json 15 件で総ノード 102,737、合計 36.79 MB。
+
+対照であることの担保: 15 本すべてで
+  config が 62 キーで完全一致（nn_file_name まで含めて 15 本同一）
+  env_othello_use_corner_feature = false、nn_use_corner_aux_head = false
+  "aux" フィールドの出現 0 件
+  q_trace の欠損 0 件（総ノード 102,737）、root.N は全 ply で 129
+
+健全性検査: audit_corpus14.py で 15 本を検査した（audit_report.txt）。
+  (a) NG 0 件
+  (b) root 欠損 0、子 0 の root 0、不整合 0、p_noise は全ノードで 0
+  (c) 15 本すべて 着手 60 / PASS 3 / 空マス 0 で終局に到達
+  (e) 相異なる最終盤面 13 / 15
+
+0 手固定の 1 本と 14 本の関係: free_n128.json の最初の 3 手は E3 F5 D6 で、初期配置の
+安定化群 {id, rot180, diag, antidiag} のうち id でのみ 14 系統に一致する。対応するのは
+src_S3_n128.json（E3 F5 D6）である。ply 3 以降は復元着手列・board・played・探索木の
+すべてが src_S3_n128.json と完全一致し、root サブツリーは q_trace を含めて 1 バイトも
+違わない。したがってこの 1 本は ply 3 以降が重複であり、固有に持つのは ply 0..2 の
+探索木だけである（14 本はこの 3 手を固定手として与えているため探索していない）。
+探索木まで一致することから、このエンジンは genmove ごとに木を作り直しており、
+前手の部分木を引き継いでいない。
+
+gaz コーパスとの関係: 別バイナリ・別モデルで撮った記録なので、並べるときは前提を揃えること。
+  data/corpus14  : md5 c508fe4ede726cf66d9b468762c5306c（自己申告 fd5d47-dirty）
+  data/corpus_qt : md5 b3dcd52baf1738a339924fe6bb203f06（自己申告 7958e3-dirty）
+  data/az_corpus15（ここ）: md5 3e0584aeff3765ea2939368a4ad18b06（自己申告 35d14a-dirty）
+  モデルも gaz 側は othello_8x8_gaz_n16、こちらは othello_8x8_az_n128 である。
+  さらに cfg の actor_use_gumbel が gaz 側は true、こちらは false である。
